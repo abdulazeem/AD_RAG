@@ -38,7 +38,7 @@ async def query_endpoint(request: QueryRequest):
     # Retrieval + reranking (use same backend as LLM for consistency)
     # Pass selected_documents to filter results
     pipeline = RetrievalPipeline(backend=llm_backend)
-    chunks = pipeline.run(query, document_filter=selected_documents)
+    chunks, retrieval_stats = pipeline.run(query, document_filter=selected_documents)
 
     # Build prompt with conversation history and track
     generator = Generator(backend=llm_backend)
@@ -90,5 +90,7 @@ async def query_endpoint(request: QueryRequest):
         answer=answer,
         used_chunks=used_chunks,
         cost_usd=0.0,
-        chat_session_id=chat_session_id
+        chat_session_id=chat_session_id,
+        retrieved_count=retrieval_stats.get("retrieved_count"),
+        reranked_count=retrieval_stats.get("reranked_count")
     )

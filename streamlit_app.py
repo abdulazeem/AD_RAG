@@ -21,7 +21,6 @@ QUERY_ENDPOINT = f"{API_BASE_URL}/api/v1/query/"
 CHAT_SESSIONS_ENDPOINT = f"{API_BASE_URL}/api/v1/chat/sessions"
 CHAT_MESSAGES_ENDPOINT = f"{API_BASE_URL}/api/v1/chat/sessions/{{chat_id}}/messages"
 CHAT_DELETE_ENDPOINT = f"{API_BASE_URL}/api/v1/chat/sessions/{{chat_id}}"
-RERANK_ENDPOINT = f"{API_BASE_URL}/api/v1/rerank/"
 DOCUMENTS_ENDPOINT = f"{API_BASE_URL}/api/v1/admin/documents/{{backend}}"
 
 # Page configuration
@@ -353,14 +352,6 @@ def sidebar_settings():
 
         st.divider()
 
-        # Statistics
-        st.subheader("📊 Statistics")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Queries", st.session_state.total_queries)
-        with col2:
-            st.metric("Documents", st.session_state.total_documents)
-
         return llm_backend, top_k
 
 
@@ -430,6 +421,8 @@ def chat_tab(llm_backend, top_k):
                         used_chunks = result.get("used_chunks", [])
                         cost_usd = result.get("cost_usd", 0.0)
                         chat_session_id = result.get("chat_session_id")
+                        retrieved_count = result.get("retrieved_count")
+                        reranked_count = result.get("reranked_count")
 
                         # Update current chat ID if it was a new chat
                         if not st.session_state.current_chat_id and chat_session_id:
@@ -440,9 +433,16 @@ def chat_tab(llm_backend, top_k):
                         # Display answer
                         st.markdown(answer)
 
-                        # Show cost if applicable
+                        # Show rerank stats and cost
+                        info_parts = []
+                        if retrieved_count and reranked_count:
+                            rerank_percentage = (reranked_count / retrieved_count) * 100
+                            info_parts.append(f"🔄 Retrieved: {retrieved_count} → Reranked: {reranked_count} ({rerank_percentage:.1f}%)")
                         if cost_usd > 0:
-                            st.caption(f"💰 Estimated cost: ${cost_usd:.4f}")
+                            info_parts.append(f"💰 Cost: ${cost_usd:.4f}")
+
+                        if info_parts:
+                            st.caption(" | ".join(info_parts))
 
                         # Add assistant message to chat
                         st.session_state.messages.append({
@@ -638,104 +638,6 @@ def upload_tab():
                             st.code(traceback.format_exc())
 
 
-def rerank_tab(llm_backend):
-    """Rerank interface tab."""
-    st.markdown("### 🔄 Document Reranking")
-    st.markdown("Enter a query and documents to rerank them by relevance.")
-
-    # Query input
-    query = st.text_input(
-        "Query",
-        placeholder="What is machine learning?",
-        help="Enter the query to rank documents against"
-    )
-
-    # Documents input
-    st.markdown("#### Documents")
-    st.caption("Enter documents to rank (one per line)")
-
-    documents_text = st.text_area(
-        "Documents (one per line)",
-        placeholder="Machine learning is a subset of AI...\nDeep learning uses neural networks...\nPython is a programming language...",
-        height=200,
-        label_visibility="collapsed"
-    )
-
-    # Additional settings
-    col1, col2 = st.columns(2)
-    with col1:
-        rerank_backend = st.selectbox(
-            "Reranking Backend",
-            options=["openai", "ollama"],
-            index=0 if llm_backend == "openai" else 1,
-            help="LLM backend to use for reranking"
-        )
-    with col2:
-        top_k = st.number_input(
-            "Top K Results",
-            min_value=1,
-            max_value=50,
-            value=5,
-            help="Return only top K ranked documents"
-        )
-
-    # Rerank button
-    if st.button("🔄 Rerank Documents", use_container_width=True, type="primary"):
-        if not query:
-            st.error("❌ Please enter a query")
-        elif not documents_text.strip():
-            st.error("❌ Please enter at least one document")
-        else:
-            # Parse documents
-            documents = [doc.strip() for doc in documents_text.split('\n') if doc.strip()]
-
-            if len(documents) == 0:
-                st.error("❌ No valid documents found")
-            else:
-                with st.spinner("Reranking documents..."):
-                    try:
-                        # Make API request
-                        payload = {
-                            "query": query,
-                            "documents": documents,
-                            "llm_backend": rerank_backend,
-                            "top_k": top_k
-                        }
-                        response = requests.post(RERANK_ENDPOINT, json=payload)
-
-                        if response.status_code == 200:
-                            result = response.json()
-                            ranked_docs = result.get("ranked_documents", [])
-
-                            # Display results
-                            st.success(f"✅ Reranked {len(ranked_docs)} documents")
-
-                            st.markdown("### 📊 Results")
-                            for idx, doc in enumerate(ranked_docs, 1):
-                                with st.container():
-                                    col1, col2 = st.columns([0.9, 0.1])
-                                    with col1:
-                                        st.markdown(f"**#{idx} - Score: {doc['score']:.2f}**")
-                                        st.markdown(f"*Original position: #{doc['original_index'] + 1}*")
-                                    with col2:
-                                        st.metric("", f"{doc['score']:.1f}")
-
-                                    st.text_area(
-                                        f"Document {idx}",
-                                        value=doc['text'],
-                                        height=100,
-                                        disabled=True,
-                                        label_visibility="collapsed"
-                                    )
-                                    st.divider()
-
-                        else:
-                            st.error(f"❌ API request failed: {response.status_code}")
-
-                    except Exception as e:
-                        st.error(f"❌ Error: {str(e)}")
-
-
 def main():
     """Main application."""
     # Title with emoji
@@ -745,7 +647,7 @@ def main():
     llm_backend, top_k = sidebar_settings()
 
     # Create tabs
-    tab1, tab2, tab3 = st.tabs(["📤 Upload", "💬 Chat", "🔄 Rerank"])
+    tab1, tab2 = st.tabs(["📤 Upload", "💬 Chat"])
 
     with tab1:
         upload_tab()
@@ -753,9 +655,6 @@ def main():
     with tab2:
         st.markdown("### Ask questions about your documents!")
         chat_tab(llm_backend, top_k)
-
-    with tab3:
-        rerank_tab(llm_backend)
 
 
 if __name__ == "__main__":
