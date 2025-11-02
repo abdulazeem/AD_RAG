@@ -45,33 +45,80 @@ class Generator:
             with open(template_path, "r", encoding="utf-8") as f:
                 template_str = f.read()
         else:
-            # Default prompt template
-            template_str = """You are a helpful AI assistant. Answer the user's question based on the provided context.
+            # Default prompt template with conversation history
+            template_str = """You are a helpful AI assistant. Answer the user's question based on the provided context{history_note}.
 
-Context:
+{conversation_history}Context:
 {context}
 
 Question: {query}
 
-Answer: Based on the context provided above, """
+Answer:"""
 
         self.prompt_template: PromptTemplate = PromptTemplate.from_template(template_str)
 
-    def build_prompt(self, query: str, chunks: List[Dict[str, Any]]) -> str:
+    def build_prompt(
+        self,
+        query: str,
+        chunks: List[Dict[str, Any]],
+        conversation_history: List[Dict[str, str]] = None
+    ) -> str:
         """
-        Builds the prompt string given a user query and list of chunk dicts.
-        Each chunk dict has 'text' and 'metadata'.
+        Builds the prompt string given a user query, list of chunk dicts, and conversation history.
+
+        Args:
+            query: Current user query
+            chunks: List of retrieved context chunks with 'text' and 'metadata'
+            conversation_history: List of previous messages with 'role' and 'content'
         """
-        # combine chunk texts into one context string
+        # Combine chunk texts into one context string
         context = "\n\n".join([chunk["text"] for chunk in chunks])
-        prompt = self.prompt_template.format(query=query, context=context)
+
+        # Format conversation history
+        if conversation_history and len(conversation_history) > 0:
+            # Limit to last 10 messages to avoid token overflow
+            recent_history = conversation_history[-10:]
+
+            history_text = "Previous Conversation:\n"
+            for msg in recent_history:
+                role = msg.get("role", "unknown")
+                content = msg.get("content", "")
+                if role == "user":
+                    history_text += f"User: {content}\n"
+                elif role == "assistant":
+                    history_text += f"Assistant: {content}\n"
+            history_text += "\n"
+            history_note = " and our previous conversation"
+        else:
+            history_text = ""
+            history_note = ""
+
+        prompt = self.prompt_template.format(
+            query=query,
+            context=context,
+            conversation_history=history_text,
+            history_note=history_note
+        )
         return prompt
 
-    def generate_answer(self, query: str, chunks: List[Dict[str, Any]], **kwargs):
+    def generate_answer(
+        self,
+        query: str,
+        chunks: List[Dict[str, Any]],
+        conversation_history: List[Dict[str, str]] = None,
+        **kwargs
+    ):
         """
-        Generate an answer to the query using provided context chunks.
-        Returns tuple of (answer text, usage dict with prompt_tokens and completion_tokens).
+        Generate an answer to the query using provided context chunks and conversation history.
+
+        Args:
+            query: Current user query
+            chunks: List of retrieved context chunks
+            conversation_history: List of previous messages with 'role' and 'content'
+
+        Returns:
+            Tuple of (answer text, usage dict with prompt_tokens and completion_tokens)
         """
-        prompt = self.build_prompt(query, chunks)
+        prompt = self.build_prompt(query, chunks, conversation_history)
         answer, usage = self.llm.generate(prompt, **kwargs)
         return answer, usage

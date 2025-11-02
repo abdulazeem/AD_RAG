@@ -11,11 +11,25 @@ class IngestResponse(BaseModel):
     success: bool
     message: Optional[str] = None
 
+class FileIngestResult(BaseModel):
+    filename: str
+    success: bool
+    message: str
+    chunks_created: Optional[int] = None
+
+class BulkIngestResponse(BaseModel):
+    total_files: int
+    successful: int
+    failed: int
+    results: List[FileIngestResult]
+    backend_used: str
+
 class QueryRequest(BaseModel):
     query: str
     top_k: Optional[int] = None
     llm_backend: Optional[str] = None  # "openai" or "ollama", defaults to settings.llm_backend
     chat_session_id: Optional[str] = None  # Chat session ID for maintaining conversation history
+    selected_documents: Optional[List[str]] = None  # Filter results to specific documents (filenames)
 
 class DocumentChunk(BaseModel):
     text: str

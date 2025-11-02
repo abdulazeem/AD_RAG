@@ -72,21 +72,50 @@ class VectorStore:
             finally:
                 session.close()
 
-    def query(self, vector: List[float], top_k: int = 10) -> List[Dict[str, Any]]:
+    def query(
+        self,
+        vector: List[float],
+        top_k: int = 10,
+        document_filter: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
         """
         Query for nearest neighbors given a vector. Returns list of metadata + text.
+
+        Args:
+            vector: Query embedding vector
+            top_k: Number of results to return
+            document_filter: Optional list of document filenames to filter by
         """
         with self.Session() as session:
             # Using cosine distance operator in pgvector: "<=>"
-            # Build raw SQL query for vector similarity
-            stmt = text(f"""
-                SELECT id, text, chunk_metadata, embedding <=> :vector AS distance
-                FROM {self.table_name}
-                ORDER BY embedding <=> :vector
-                LIMIT :top_k
-            """)
+            # Build raw SQL query for vector similarity with optional document filter
+            if document_filter and len(document_filter) > 0:
+                # Filter by source_file in metadata
+                placeholders = ", ".join([f":doc_{i}" for i in range(len(document_filter))])
+                stmt = text(f"""
+                    SELECT id, text, chunk_metadata, embedding <=> :vector AS distance
+                    FROM {self.table_name}
+                    WHERE chunk_metadata->>'source_file' IN ({placeholders})
+                    ORDER BY embedding <=> :vector
+                    LIMIT :top_k
+                """)
 
-            results = session.execute(stmt, {"vector": str(vector), "top_k": top_k}).fetchall()
+                # Build params dict
+                params = {"vector": str(vector), "top_k": top_k}
+                for i, doc in enumerate(document_filter):
+                    params[f"doc_{i}"] = doc
+
+                results = session.execute(stmt, params).fetchall()
+            else:
+                # No filter - search all documents
+                stmt = text(f"""
+                    SELECT id, text, chunk_metadata, embedding <=> :vector AS distance
+                    FROM {self.table_name}
+                    ORDER BY embedding <=> :vector
+                    LIMIT :top_k
+                """)
+
+                results = session.execute(stmt, {"vector": str(vector), "top_k": top_k}).fetchall()
 
             output = []
             for row in results:

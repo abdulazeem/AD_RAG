@@ -102,9 +102,12 @@ class IngestService:
             f.write(doc_res["content"])
         print(f"[IngestService] Saved converted document to: {processed_path}")
 
+        # Pass page information if available
+        pages = doc_res.get("pages", None)
         chunks = self.chunker.process_text(
             text=doc_res["content"],
-            metadata={"source_file": processed_filename}
+            metadata={"source_file": processed_filename, **doc_res["metadata"]},
+            pages=pages
         )
         print(f"[IngestService] {file_path} → {len(chunks)} chunks")
 

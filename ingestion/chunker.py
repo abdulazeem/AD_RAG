@@ -40,15 +40,97 @@ class Chunker:
         # Instantiate semantic chunker
         self.chunker = SemanticChunker(self.embeddings)
 
-    def process_text(self, text: str, metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def process_text(self, text: str, metadata: Dict[str, Any], pages: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        Process text and create chunks with metadata.
+
+        Args:
+            text: Full document text
+            metadata: Base metadata for all chunks
+            pages: Optional list of page-level content with page numbers
+                  Format: [{"page_number": 1, "content": "..."}, ...]
+
+        Returns:
+            List of chunks with metadata including page numbers
+        """
         docs = self.chunker.create_documents([text], metadatas=[metadata])
         chunks = []
+
+        # Create page mapping if pages are provided
+        page_mapping = self._create_page_mapping(text, pages) if pages else {}
+
         for idx, doc in enumerate(docs):
+            chunk_text = doc.page_content
+            chunk_metadata = {**metadata, "chunk_index": idx}
+
+            # Add page information if available
+            if page_mapping:
+                page_nums = self._find_chunk_pages(chunk_text, text, page_mapping)
+                if page_nums:
+                    chunk_metadata["page_numbers"] = page_nums
+                    chunk_metadata["page"] = page_nums[0]  # Primary page for backward compatibility
+
             chunks.append({
-                "text": doc.page_content,
-                "metadata": {**metadata, "chunk_index": idx}
+                "text": chunk_text,
+                "metadata": chunk_metadata
             })
         return chunks
+
+    def _create_page_mapping(self, full_text: str, pages: List[Dict[str, Any]]) -> Dict[int, int]:
+        """
+        Create a mapping of character positions to page numbers.
+
+        Args:
+            full_text: Complete document text
+            pages: List of page-level content
+
+        Returns:
+            Dict mapping text position to page number
+        """
+        page_mapping = {}
+        current_pos = 0
+
+        for page_info in pages:
+            page_num = page_info["page_number"]
+            page_content = page_info["content"]
+
+            # Find this page's content in the full text
+            page_start = full_text.find(page_content, current_pos)
+            if page_start != -1:
+                page_end = page_start + len(page_content)
+                # Map all positions in this range to this page number
+                for pos in range(page_start, page_end):
+                    page_mapping[pos] = page_num
+                current_pos = page_end
+
+        return page_mapping
+
+    def _find_chunk_pages(self, chunk_text: str, full_text: str, page_mapping: Dict[int, int]) -> List[int]:
+        """
+        Find which pages a chunk spans.
+
+        Args:
+            chunk_text: The chunk's text
+            full_text: Complete document text
+            page_mapping: Mapping of positions to page numbers
+
+        Returns:
+            List of page numbers the chunk appears on
+        """
+        # Find chunk position in full text
+        chunk_start = full_text.find(chunk_text)
+        if chunk_start == -1:
+            return []
+
+        chunk_end = chunk_start + len(chunk_text)
+
+        # Find all unique page numbers in this range
+        page_nums = set()
+        for pos in range(chunk_start, min(chunk_end, max(page_mapping.keys()) + 1) if page_mapping else chunk_end):
+            if pos in page_mapping:
+                page_nums.add(page_mapping[pos])
+
+        return sorted(list(page_nums))
 
     def process_folder(self, folder_path: str) -> List[Dict[str, Any]]:
         if not os.path.isdir(folder_path):

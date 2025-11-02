@@ -19,10 +19,14 @@ async def query_endpoint(request: QueryRequest):
     query = request.query
     llm_backend = request.llm_backend  # Use requested backend or default
     chat_session_id = request.chat_session_id
+    selected_documents = request.selected_documents  # Optional document filter
 
     # Create new chat session if not provided
     if not chat_session_id:
         chat_session_id = chat_manager.create_chat_session(query)
+
+    # Get previous conversation history (excluding current query)
+    conversation_history = chat_manager.get_chat_messages(chat_session_id)
 
     # Save user message to chat history
     chat_manager.add_message(
@@ -32,16 +36,25 @@ async def query_endpoint(request: QueryRequest):
     )
 
     # Retrieval + reranking (use same backend as LLM for consistency)
+    # Pass selected_documents to filter results
     pipeline = RetrievalPipeline(backend=llm_backend)
-    chunks = pipeline.run(query)
+    chunks = pipeline.run(query, document_filter=selected_documents)
 
-    # Build prompt and track
+    # Build prompt with conversation history and track
     generator = Generator(backend=llm_backend)
-    prompt = generator.build_prompt(query, chunks)
-    track_prompt(template=prompt, variables={"query": query, "chunk_count": len(chunks), "llm_backend": generator.backend_name})
+    prompt = generator.build_prompt(query, chunks, conversation_history)
+    track_prompt(
+        template=prompt,
+        variables={
+            "query": query,
+            "chunk_count": len(chunks),
+            "llm_backend": generator.backend_name,
+            "history_length": len(conversation_history)
+        }
+    )
 
-    # Generate answer and capture token usage
-    answer, usage = generator.generate_answer(query, chunks)
+    # Generate answer with conversation history and capture token usage
+    answer, usage = generator.generate_answer(query, chunks, conversation_history)
 
     # Track actual token usage
     prompt_tokens = usage.get("prompt_tokens", 0)

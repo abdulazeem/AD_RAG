@@ -141,9 +141,7 @@ def load_settings() -> Settings:
     # Automatically create data directories if they don't exist
     data_dirs = [
         settings_obj.data.raw_docs,
-        settings_obj.data.processed_docs,
-        settings_obj.data.processed_chunks,
-        settings_obj.data.chunks
+        settings_obj.data.processed_docs
     ]
 
     for directory in data_dirs:

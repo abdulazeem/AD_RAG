@@ -1,5 +1,173 @@
-```markdown
-# RAG Pipeline with Docling, LangChain, PGVector & Arize Phoenix
+<div align="center">
+
+# 🤖 Agentic RAG System
+
+### Production-Ready Retrieval-Augmented Generation with LangChain, FastAPI & PGVector
+
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)](https://fastapi.tiangolo.com/)
+[![LangChain](https://img.shields.io/badge/LangChain-0.3+-orange.svg)](https://python.langchain.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16+-blue.svg)](https://www.postgresql.org/)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](https://www.docker.com/)
+
+[Features](#-features) • [Quick Start](#-quick-start) • [Architecture](#️-architecture) • [API Docs](#-api-endpoints) • [Contributing](#-contributing)
+
+---
+
+</div>
+
+A production-ready Retrieval-Augmented Generation (RAG) system built with LangChain, FastAPI, PostgreSQL with PGVector, and support for both OpenAI and Ollama models.
+
+## 🏗️ Architecture
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Frontend Layer                            │
+│         Streamlit UI  +  OpenWebUI                          │
+└────────────────────────┬────────────────────────────────────┘
+                         │ HTTP/REST
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 Backend Layer (FastAPI)                      │
+│  • Document Processing (Docling + Semantic Chunking)        │
+│  • Embeddings (OpenAI + Ollama)                             │
+│  • Vector Search (PostgreSQL + PGVector)                    │
+│  • LLM Generation (OpenAI GPT-4 + Ollama Llama3.2)         │
+│  • Conversation Memory                                       │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Data Layer (PostgreSQL + PGVector)              │
+│  • Vector Embeddings Storage                                │
+│  • Document Metadata                                        │
+│  • Conversation History                                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 🚀 Features
+
+- ✅ **Dual Embedding Support**: OpenAI (text-embedding-3-small) OR Ollama (llama3.2)
+- ✅ **Dual LLM Support**: OpenAI (gpt-4o-mini) OR Ollama (llama3.2)
+- ✅ **Semantic Chunking**: Intelligent document splitting using percentile-based breakpoints
+- ✅ **Vector Search**: PostgreSQL with PGVector extension for similarity search
+- ✅ **Document Processing**: Support for PDF, DOCX, TXT, MD using Docling
+- ✅ **Conversation Memory**: Context-aware chat with history
+- ✅ **RESTful API**: FastAPI with automatic OpenAPI documentation
+- ✅ **Observability**: Arize Phoenix integration for tracing
+- ✅ **Evaluation**: RAGAs for quality metrics
+
+## 📁 Project Structure
+```
+RAG_LC/
+├── backend/
+│   ├── routers/
+│   │   ├── __init__.py
+│   │   ├── route_embeddings.py       # Embeddings API
+│   │   ├── embeddings.py             # Embeddings logic
+│   │   ├── route_documents.py        # Documents API
+│   │   ├── documents.py              # Document processing
+│   │   ├── route_chat.py             # Chat API
+│   │   └── chat.py                   # Chat logic
+│   │
+│   ├── config.py                     # Configuration
+│   ├── database.py                   # PostgreSQL + PGVector
+│   ├── models.py                     # Pydantic models
+│   ├── main.py                       # FastAPI app
+│   ├── requirements.txt
+│   └── .env
+│
+├── uploads/                          # Document uploads
+├── docker-compose.yml
+└── README.md
+```
+
+## 🛠️ Tech Stack
+
+| Component | Technology                           |
+|-----------|--------------------------------------|
+| **Backend Framework** | FastAPI                              |
+| **Document Processing** | Docling                              |
+| **Text Chunking** | LangChain SemanticChunker            |
+| **Embeddings** | OpenAI + Ollama                      |
+| **Vector Database** | PostgreSQL + PGVector                |
+| **LLMs** | OpenAI GPT-4o-mini + Ollama Llama3.2 |
+| **Orchestration** | LangChain + LangGraph                |
+| **Observability** | Arize Phoenix                        |
+| **Evaluation** | RAGAS Framework                      |
+| **Deployment** | Dockerfile                           |
+
+## 📋 Prerequisites
+
+- Python 3.11+
+- Docker & Docker Compose
+- OpenAI API Key
+- UV package manager (optional, recommended)
+
+
+## 🔧 Configuration
+
+All configuration is managed through environment variables in `.env` file:
+
+- **OpenAI Settings**: API key, models
+- **Ollama Settings**: Base URL, models
+- **PostgreSQL Settings**: Connection details
+- **Vector Store Settings**: Collection names, dimensions
+- **RAG Settings**: Chunk size, top-k retrieval
+
+## 🎯 Roadmap
+
+- [x] Configuration management
+- [x] Database setup with PGVector
+- [x] Embeddings service (OpenAI + Ollama)
+- [x] Document processing with Docling
+- [ ] Vector store operations
+- [ ] LLM service (OpenAI + Ollama)
+- [ ] RAG pipeline
+- [ ] Chat endpoints
+- [ ] Conversation memory
+- [ ] Streamlit frontend
+- [ ] OpenWebUI integration
+- [ ] Arize Phoenix observability
+- [ ] RAGAs evaluation framework
+- [ ] Document indexer CLI
+- [ ] Production deployment
+
+```
+
+## 📚 Documentation
+
+- [LangChain Documentation](https://python.langchain.com/)
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
+- [PGVector Documentation](https://github.com/pgvector/pgvector)
+- [Ollama Documentation](https://ollama.ai/)
+- [Docling Documentation](https://github.com/DS4SD/docling)
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Open a Pull Request
+
+## 📄 License
+
+MIT License
+
+## 👥 Author
+
+- Mohammed Abdul Azeem Siddiqui
+
+## 🙏 Acknowledgments
+
+- LangChain team for the amazing framework
+- OpenAI for embeddings and LLMs
+- Ollama for local LLM support
+
+
+
+
 
 A modular Retrieval-Augmented Generation (RAG) application built with:
 - Document ingestion via Docling
