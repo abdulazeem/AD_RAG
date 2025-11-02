@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: rag-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: rag-db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    container_name: rag-phoenix
+    ports:
+      - "6006:6006"
+    environment:
+      - PHOENIX_PORT=6006
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      phoenix:
+        condition: service_started
+    environment:
+      # Database
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/rag-db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: rag-db
+      PGVECTOR_TABLE: chunk_embeddings
+
+      # OpenAI
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_TIMEOUT: ${OPENAI_TIMEOUT:-120}
+
+      # LLM & Embedding Backend
+      LLM_BACKEND: ${LLM_BACKEND:-openai}
+      EMBEDDING_BACKEND: ${EMBEDDING_BACKEND:-openai}
+
+      # Ollama (if using)
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://localhost:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:latest}
+
+      # Retrieval settings
+      RETRIEVAL_TOP_K: ${RETRIEVAL_TOP_K:-20}
+      RETRIEVAL_RERANK_TOP_M: ${RETRIEVAL_RERANK_TOP_M:-5}
+      RETRIEVAL_CHUNK_SIZE: ${RETRIEVAL_CHUNK_SIZE:-1000}
+      RETRIEVAL_CHUNK_OVERLAP: ${RETRIEVAL_CHUNK_OVERLAP:-200}
+
+      # Embedding settings
+      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-text-embedding-ada-002}
+      EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-64}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1536}
+
+      # Observability
+      PHOENIX_COLLECTOR_ENDPOINT: http://phoenix:6006
+      ENABLE_COST_TRACKING: ${ENABLE_COST_TRACKING:-true}
+      ENABLE_PROMPT_TRACKING: ${ENABLE_PROMPT_TRACKING:-true}
+
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+      # App settings
+      APP_NAME: rag_app
+      APP_VERSION: 0.1.0
+    ports:
+      - "8000:8000"
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+volumes:
+  postgres_data:
