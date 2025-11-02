@@ -1094,6 +1094,12 @@ def evaluation_tab(llm_backend):
                                             st.markdown("**Evaluation Justification:**")
                                             st.info(metrics.get('justification', 'No justification provided'))
 
+                                            # Show raw LLM response
+                                            raw_response = metrics.get('raw_response', '')
+                                            if raw_response:
+                                                with st.expander("🔍 View Raw LLM Evaluation Response"):
+                                                    st.code(raw_response, language=None)
+
                             else:
                                 st.error(f"❌ {result.get('message', 'Evaluation failed')}")
 

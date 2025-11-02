@@ -154,7 +154,8 @@ Do not use any other format. Start your response with "FAITHFULNESS:"."""
             metrics = EvaluationMetrics(
                 faithfulness=faithfulness,
                 correctness=correctness,
-                justification=justification
+                justification=justification,
+                raw_response=response_clean
             )
 
             return metrics
@@ -188,14 +189,16 @@ Do not use any other format. Start your response with "FAITHFULNESS:"."""
                 return EvaluationMetrics(
                     faithfulness=faithfulness,
                     correctness=correctness,
-                    justification=justification
+                    justification=justification,
+                    raw_response=response_to_parse
                 )
             except Exception as fallback_error:
                 # Ultimate fallback
                 return EvaluationMetrics(
                     faithfulness=False,
                     correctness=0,
-                    justification=f"Error during evaluation: {str(e)}, Fallback error: {str(fallback_error)}"
+                    justification=f"Error during evaluation: {str(e)}, Fallback error: {str(fallback_error)}",
+                    raw_response=""
                 )
 
     def export_results_to_excel(
@@ -224,7 +227,8 @@ Do not use any other format. Start your response with "FAITHFULNESS:"."""
                 'Contexts Used': result['contexts_used'],
                 'Faithfulness': '✅ True' if metrics['faithfulness'] else '❌ False',
                 'Correctness Score (0-10)': metrics['correctness'],
-                'Justification': metrics['justification']
+                'Justification': metrics['justification'],
+                'Raw LLM Response': metrics.get('raw_response', '')
             })
 
         # Create DataFrame and save
@@ -241,14 +245,15 @@ Do not use any other format. Start your response with "FAITHFULNESS:"."""
             worksheet = writer.sheets['Evaluation Results']
 
             # Adjust column widths
-            worksheet.column_dimensions['A'].width = 12
-            worksheet.column_dimensions['B'].width = 50
-            worksheet.column_dimensions['C'].width = 50
-            worksheet.column_dimensions['D'].width = 50
-            worksheet.column_dimensions['E'].width = 15
-            worksheet.column_dimensions['F'].width = 15
-            worksheet.column_dimensions['G'].width = 20
-            worksheet.column_dimensions['H'].width = 60
+            worksheet.column_dimensions['A'].width = 12   # Question #
+            worksheet.column_dimensions['B'].width = 50   # Question
+            worksheet.column_dimensions['C'].width = 50   # Ground Truth
+            worksheet.column_dimensions['D'].width = 50   # AI Response
+            worksheet.column_dimensions['E'].width = 15   # Contexts Used
+            worksheet.column_dimensions['F'].width = 15   # Faithfulness
+            worksheet.column_dimensions['G'].width = 20   # Correctness Score
+            worksheet.column_dimensions['H'].width = 60   # Justification
+            worksheet.column_dimensions['I'].width = 70   # Raw LLM Response
 
         print(f"[LLMEvaluator] Exported results to: {output_path}")
 
