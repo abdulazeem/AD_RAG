@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from generation.api.routers import query, ingest, admin, chat, rerank
+from generation.api.routers import query, ingest, admin, chat, rerank, evaluation
 from observability.arize_setup import init_tracing
 from database.init_db import init_db
 
@@ -22,11 +22,12 @@ def create_app() -> FastAPI:
     init_tracing(service_name="rag_app_api")
 
     # Include routers
-    app.include_router(ingest.router, prefix="/api/v1/ingest", tags=["ingest"])
-    app.include_router(query.router, prefix="/api/v1/query", tags=["query"])
-    app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
-    app.include_router(chat.router, prefix="/api/v1/chat", tags=["chat"])
-    app.include_router(rerank.router, prefix="/api/v1/rerank", tags=["rerank"])
+    app.include_router(ingest.router, prefix="/api/v1/ingest", tags=["Ingest"])
+    app.include_router(query.router, prefix="/api/v1/query", tags=["Query"])
+    app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
+    app.include_router(chat.router, prefix="/api/v1/chat", tags=["Chat"])
+    app.include_router(rerank.router, prefix="/api/v1/rerank", tags=["Rerank"])
+    app.include_router(evaluation.router, prefix="/api/v1/evaluation", tags=["Evaluation"])
 
     return app
 

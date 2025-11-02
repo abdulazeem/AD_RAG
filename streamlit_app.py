@@ -23,6 +23,13 @@ CHAT_MESSAGES_ENDPOINT = f"{API_BASE_URL}/api/v1/chat/sessions/{{chat_id}}/messa
 CHAT_DELETE_ENDPOINT = f"{API_BASE_URL}/api/v1/chat/sessions/{{chat_id}}"
 RERANK_ENDPOINT = f"{API_BASE_URL}/api/v1/rerank/"
 DOCUMENTS_ENDPOINT = f"{API_BASE_URL}/api/v1/admin/documents/{{backend}}"
+EVALUATION_GROUND_TRUTH_ENDPOINT = f"{API_BASE_URL}/api/v1/evaluation/generate-ground-truth"
+EVALUATION_EVALUATE_ENDPOINT = f"{API_BASE_URL}/api/v1/evaluation/evaluate"
+EVALUATION_FILES_ENDPOINT = f"{API_BASE_URL}/api/v1/evaluation/ground-truth-files"
+EVALUATION_DELETE_FILE_ENDPOINT = f"{API_BASE_URL}/api/v1/evaluation/ground-truth-files/{{filename}}"
+EVALUATION_PREVIEW_FILE_ENDPOINT = f"{API_BASE_URL}/api/v1/evaluation/ground-truth-files/{{filename}}/preview"
+EVALUATION_RESULTS_ENDPOINT = f"{API_BASE_URL}/api/v1/evaluation/evaluation-results"
+EVALUATION_RESULTS_PREVIEW_ENDPOINT = f"{API_BASE_URL}/api/v1/evaluation/evaluation-results/{{filename}}/preview"
 
 # Page configuration
 st.set_page_config(
@@ -736,6 +743,425 @@ def rerank_tab(llm_backend):
                         st.error(f"❌ Error: {str(e)}")
 
 
+def evaluation_tab(llm_backend):
+    """LLM-based evaluation interface tab."""
+    st.markdown("### 📊 LLM-Based Evaluation System")
+    st.markdown("Generate ground truth datasets and evaluate your RAG system using LLM-based metrics.")
+
+    # Create sub-tabs for ground truth generation and evaluation
+    eval_tab1, eval_tab2 = st.tabs(["🎯 Ground Truth Generation", "📈 RAG Evaluation"])
+
+    with eval_tab1:
+        st.markdown("#### Generate Ground Truth Dataset")
+        st.markdown("Generate question-answer pairs from your knowledge base for evaluation.")
+
+        # Backend selection
+        col1, col2 = st.columns(2)
+        with col1:
+            gt_backend = st.selectbox(
+                "Select Backend",
+                options=["openai", "ollama"],
+                index=0 if llm_backend == "openai" else 1,
+                help="Choose which backend to use for generating ground truth",
+                key="gt_backend"
+            )
+        with col2:
+            num_samples = st.number_input(
+                "Number of Q&A Pairs",
+                min_value=1,
+                max_value=50,
+                value=10,
+                help="Number of question-answer pairs to generate"
+            )
+
+        # Document selection for ground truth generation
+        st.markdown("##### Document Selection (Optional)")
+        try:
+            docs_response = requests.get(DOCUMENTS_ENDPOINT.format(backend=gt_backend), timeout=10)
+            if docs_response.status_code == 200:
+                docs_data = docs_response.json()
+                documents = docs_data.get("documents", [])
+
+                if documents:
+                    doc_filenames = [doc["filename"] for doc in documents]
+                    gt_selected_docs = st.multiselect(
+                        "Select specific documents for ground truth generation (leave empty for all)",
+                        options=doc_filenames,
+                        default=[],
+                        help="Filter ground truth generation to specific documents",
+                        key="gt_selected_docs"
+                    )
+                else:
+                    st.warning("No documents available in this backend")
+                    gt_selected_docs = []
+            else:
+                st.warning("Unable to load documents")
+                gt_selected_docs = []
+        except Exception as e:
+            st.warning(f"Failed to load documents: {str(e)}")
+            gt_selected_docs = []
+
+        st.divider()
+
+        if st.button("🎯 Generate Ground Truth", use_container_width=True, type="primary"):
+            with st.spinner(f"Generating {num_samples} ground truth pairs..."):
+                try:
+                    payload = {
+                        "backend": gt_backend,
+                        "num_samples": num_samples,
+                        "selected_documents": gt_selected_docs if gt_selected_docs else None
+                    }
+                    response = requests.post(EVALUATION_GROUND_TRUTH_ENDPOINT, json=payload, timeout=600)
+
+                    if response.status_code == 200:
+                        result = response.json()
+
+                        if result.get("success"):
+                            st.success(f"✅ {result.get('message')}")
+
+                            # Display details
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.metric("Q&A Pairs Generated", result.get("num_generated", 0))
+                            with col2:
+                                st.metric("Backend Used", gt_backend.upper())
+
+                            # Show file path
+                            if result.get("file_path"):
+                                st.info(f"📁 Saved to: `{result.get('file_path')}`")
+                        else:
+                            st.error(f"❌ {result.get('message', 'Generation failed')}")
+                    else:
+                        st.error(f"❌ API request failed: {response.status_code}")
+
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
+                    import traceback
+                    with st.expander("Error Details"):
+                        st.code(traceback.format_exc())
+
+        st.divider()
+
+        # List available ground truth files
+        st.markdown("#### 📂 Available Ground Truth Files")
+        try:
+            response = requests.get(EVALUATION_FILES_ENDPOINT, timeout=10)
+            if response.status_code == 200:
+                files = response.json()
+
+                if files:
+                    st.caption(f"Found {len(files)} ground truth file(s)")
+
+                    for file in files:
+                        with st.expander(f"📄 {file['filename']}", expanded=False):
+                            # File metadata
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.text(f"Created: {file['created_at']}")
+                            with col2:
+                                st.text(f"Size: {file['size_kb']:.2f} KB")
+                            st.code(file['filepath'], language=None)
+
+                            st.divider()
+
+                            # Action buttons
+                            col_view, col_delete = st.columns(2)
+
+                            with col_view:
+                                # View/Preview button
+                                if st.button("👁️ View Preview", key=f"view_gt_{file['filename']}", use_container_width=True):
+                                    try:
+                                        preview_url = EVALUATION_PREVIEW_FILE_ENDPOINT.format(filename=file['filename'])
+                                        preview_response = requests.get(preview_url, params={"rows": 10}, timeout=10)
+
+                                        if preview_response.status_code == 200:
+                                            preview_data = preview_response.json()
+
+                                            st.markdown("##### 📊 Preview")
+                                            st.caption(f"Total rows: {preview_data['total_rows']}")
+
+                                            # Display preview as dataframe
+                                            import pandas as pd
+                                            df_preview = pd.DataFrame(preview_data['preview_data'])
+                                            st.dataframe(df_preview, use_container_width=True, height=400)
+
+                                        else:
+                                            st.error(f"❌ Failed to load preview: {preview_response.status_code}")
+                                    except Exception as e:
+                                        st.error(f"❌ Error loading preview: {str(e)}")
+
+                            with col_delete:
+                                # Delete button
+                                if st.button("🗑️ Delete", key=f"delete_gt_{file['filename']}", use_container_width=True, type="secondary"):
+                                    # Confirm deletion
+                                    if st.session_state.get(f"confirm_delete_{file['filename']}", False):
+                                        try:
+                                            delete_url = EVALUATION_DELETE_FILE_ENDPOINT.format(filename=file['filename'])
+                                            delete_response = requests.delete(delete_url, timeout=10)
+
+                                            if delete_response.status_code == 200:
+                                                st.success(f"✅ Deleted {file['filename']}")
+                                                st.rerun()
+                                            else:
+                                                st.error(f"❌ Failed to delete file: {delete_response.status_code}")
+                                        except Exception as e:
+                                            st.error(f"❌ Error deleting file: {str(e)}")
+                                        # Reset confirmation
+                                        st.session_state[f"confirm_delete_{file['filename']}"] = False
+                                    else:
+                                        # Set confirmation flag
+                                        st.session_state[f"confirm_delete_{file['filename']}"] = True
+                                        st.warning("⚠️ Click delete again to confirm")
+                else:
+                    st.info("No ground truth files yet. Generate one above!")
+            else:
+                st.warning("Unable to load ground truth files")
+        except Exception as e:
+            st.warning(f"Failed to load files: {str(e)}")
+
+    with eval_tab2:
+        st.markdown("#### Evaluate RAG System")
+        st.markdown("Run LLM-based evaluation on your RAG system using a ground truth dataset.")
+
+        # Load available ground truth files
+        try:
+            response = requests.get(EVALUATION_FILES_ENDPOINT, timeout=10)
+            gt_files = []
+            if response.status_code == 200:
+                gt_files = response.json()
+        except:
+            gt_files = []
+
+        if not gt_files:
+            st.warning("⚠️ No ground truth files available. Please generate ground truth first in the previous tab.")
+        else:
+            # File selection
+            selected_file = st.selectbox(
+                "Select Ground Truth File",
+                options=[f['filename'] for f in gt_files],
+                help="Choose a ground truth file to evaluate against"
+            )
+
+            # Get file path
+            selected_filepath = next(
+                (f['filepath'] for f in gt_files if f['filename'] == selected_file),
+                None
+            )
+
+            # Backend selection
+            eval_backend = st.selectbox(
+                "Evaluation Backend",
+                options=["openai", "ollama"],
+                index=0 if llm_backend == "openai" else 1,
+                help="Choose which backend to use for evaluation",
+                key="eval_backend"
+            )
+
+            # Document filter (optional)
+            st.markdown("##### Document Filter (Optional)")
+            try:
+                eval_docs_response = requests.get(DOCUMENTS_ENDPOINT.format(backend=eval_backend), timeout=10)
+                if eval_docs_response.status_code == 200:
+                    eval_docs_data = eval_docs_response.json()
+                    eval_documents = eval_docs_data.get("documents", [])
+
+                    if eval_documents:
+                        eval_doc_filenames = [doc["filename"] for doc in eval_documents]
+                        filter_docs = st.multiselect(
+                            "Select specific documents to evaluate (leave empty for all)",
+                            options=eval_doc_filenames,
+                            default=[],
+                            help="Filter evaluation to specific documents",
+                            key="eval_filter_docs"
+                        )
+                    else:
+                        st.info("No documents available in this backend")
+                        filter_docs = []
+                else:
+                    st.warning("Unable to load documents")
+                    filter_docs = []
+            except Exception as e:
+                st.warning(f"Failed to load documents: {str(e)}")
+                filter_docs = []
+
+            st.divider()
+
+            if st.button("📈 Run Evaluation", use_container_width=True, type="primary"):
+                with st.spinner("Running LLM-based evaluation... This may take several minutes..."):
+                    try:
+                        payload = {
+                            "ground_truth_file": selected_filepath,
+                            "backend": eval_backend,
+                            "selected_documents": filter_docs if filter_docs else None
+                        }
+                        response = requests.post(EVALUATION_EVALUATE_ENDPOINT, json=payload, timeout=1800)
+
+                        if response.status_code == 200:
+                            result = response.json()
+
+                            if result.get("success"):
+                                st.success(f"✅ {result.get('message')}")
+
+                                # Show results file path
+                                results_file_path = result.get("results_file_path")
+                                if results_file_path:
+                                    st.info(f"📊 Results saved to: `{results_file_path}`")
+
+                                summary = result.get("results_summary", {})
+                                eval_scores = result.get("evaluation_scores", {})
+
+                                # Display summary metrics
+                                st.markdown("### 📊 Evaluation Summary")
+                                cols = st.columns(4)
+                                with cols[0]:
+                                    st.metric(
+                                        "Questions Evaluated",
+                                        summary.get("questions_evaluated", 0)
+                                    )
+                                with cols[1]:
+                                    st.metric(
+                                        "Faithful Responses",
+                                        f"{summary.get('faithful_count', 0)} ({summary.get('faithful_percentage', 0.0):.1f}%)"
+                                    )
+                                with cols[2]:
+                                    st.metric(
+                                        "Avg Correctness",
+                                        f"{summary.get('average_correctness', 0.0):.2f}/10"
+                                    )
+                                with cols[3]:
+                                    st.metric(
+                                        "Backend Used",
+                                        eval_backend.upper()
+                                    )
+
+                                st.divider()
+
+                                # Display correctness distribution
+                                aggregate_metrics = eval_scores.get('aggregate_metrics', {})
+                                if 'correctness_distribution' in aggregate_metrics:
+                                    st.markdown("### 📊 Correctness Score Distribution")
+                                    dist = aggregate_metrics['correctness_distribution']
+
+                                    import pandas as pd
+                                    dist_df = pd.DataFrame([
+                                        {'Score Range': k, 'Count': v}
+                                        for k, v in dist.items()
+                                    ])
+
+                                    col1, col2 = st.columns([2, 1])
+                                    with col1:
+                                        st.bar_chart(dist_df.set_index('Score Range'))
+                                    with col2:
+                                        st.dataframe(dist_df, use_container_width=True, hide_index=True)
+
+                                st.divider()
+
+                                # Per-question results
+                                if 'evaluation_results' in eval_scores:
+                                    st.markdown("### 🔍 Per-Question Results")
+
+                                    per_question = eval_scores['evaluation_results']
+                                    for idx, q_result in enumerate(per_question, 1):
+                                        metrics = q_result.get('metrics', {})
+                                        faithfulness = metrics.get('faithfulness', False)
+                                        correctness = metrics.get('correctness', 0)
+
+                                        # Color-code the expander title based on faithfulness
+                                        status_emoji = "✅" if faithfulness else "❌"
+
+                                        with st.expander(f"{status_emoji} Question {idx} (Score: {correctness}/10): {q_result.get('question', '')[:80]}..."):
+                                            st.markdown(f"**Question:** {q_result.get('question', 'N/A')}")
+                                            st.markdown(f"**Ground Truth Answer:** {q_result.get('ground_truth_answer', 'N/A')}")
+                                            st.markdown(f"**AI Response:** {q_result.get('ai_response', 'N/A')}")
+                                            st.markdown(f"**Contexts Used:** {q_result.get('contexts_used', 0)}")
+
+                                            st.divider()
+
+                                            # Show evaluation metrics
+                                            score_cols = st.columns(2)
+                                            with score_cols[0]:
+                                                st.metric(
+                                                    "Faithfulness",
+                                                    "✅ True" if faithfulness else "❌ False"
+                                                )
+                                            with score_cols[1]:
+                                                st.metric(
+                                                    "Correctness Score",
+                                                    f"{correctness}/10"
+                                                )
+
+                                            # Show justification
+                                            st.markdown("**Evaluation Justification:**")
+                                            st.info(metrics.get('justification', 'No justification provided'))
+
+                            else:
+                                st.error(f"❌ {result.get('message', 'Evaluation failed')}")
+
+                        else:
+                            st.error(f"❌ API request failed: {response.status_code}")
+
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+                        import traceback
+                        with st.expander("Error Details"):
+                            st.code(traceback.format_exc())
+
+        st.divider()
+
+        # View past evaluation results
+        st.markdown("#### 📂 View Past Evaluation Results")
+        try:
+            response = requests.get(EVALUATION_RESULTS_ENDPOINT, timeout=10)
+            if response.status_code == 200:
+                result_files = response.json()
+
+                if result_files:
+                    st.caption(f"Found {len(result_files)} evaluation result file(s)")
+
+                    for file in result_files:
+                        with st.expander(f"📊 {file['filename']}", expanded=False):
+                            # File metadata
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.text(f"Created: {file['created_at']}")
+                            with col2:
+                                st.text(f"Size: {file['size_kb']:.2f} KB")
+                            st.code(file['filepath'], language=None)
+
+                            st.divider()
+
+                            # View button
+                            if st.button("👁️ View Results", key=f"view_results_{file['filename']}", use_container_width=True):
+                                try:
+                                    preview_url = EVALUATION_RESULTS_PREVIEW_ENDPOINT.format(filename=file['filename'])
+                                    preview_response = requests.get(preview_url, params={"rows": 100}, timeout=10)
+
+                                    if preview_response.status_code == 200:
+                                        preview_data = preview_response.json()
+
+                                        st.markdown("##### 📊 Evaluation Results Preview")
+                                        st.caption(f"Total rows: {preview_data['total_rows']}")
+
+                                        # Display preview as dataframe
+                                        import pandas as pd
+                                        df_preview = pd.DataFrame(preview_data['preview_data'])
+                                        st.dataframe(df_preview, use_container_width=True, height=600)
+
+                                        # Download link
+                                        st.info(f"💾 Full results available at: `{file['filepath']}`")
+
+                                    else:
+                                        st.error(f"❌ Failed to load results: {preview_response.status_code}")
+                                except Exception as e:
+                                    st.error(f"❌ Error loading results: {str(e)}")
+                else:
+                    st.info("No evaluation results yet. Run an evaluation above to create results!")
+            else:
+                st.warning("Unable to load evaluation results")
+        except Exception as e:
+            st.warning(f"Failed to load evaluation results: {str(e)}")
+
+
 def main():
     """Main application."""
     # Title with emoji
@@ -745,7 +1171,7 @@ def main():
     llm_backend, top_k = sidebar_settings()
 
     # Create tabs
-    tab1, tab2, tab3 = st.tabs(["📤 Upload", "💬 Chat", "🔄 Rerank"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📤 Upload", "💬 Chat", "🔄 Rerank", "📊 Evaluation"])
 
     with tab1:
         upload_tab()
@@ -756,6 +1182,9 @@ def main():
 
     with tab3:
         rerank_tab(llm_backend)
+
+    with tab4:
+        evaluation_tab(llm_backend)
 
 
 if __name__ == "__main__":

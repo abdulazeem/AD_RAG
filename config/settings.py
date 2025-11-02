@@ -61,6 +61,7 @@ class LoggingSettings(BaseModel):
 
 
 class DataSettings(BaseModel):
+    base_dir: str
     raw_docs: str
     processed_docs: str
     processed_chunks: str
@@ -130,6 +131,7 @@ def load_settings() -> Settings:
             level=os.getenv("LOG_LEVEL", "INFO")
         ),
         data=DataSettings(
+            base_dir=os.getenv("DATA_BASE_DIR", "data"),
             raw_docs=os.getenv("DATA_RAW_DOCS", "data/raw_docs"),
             processed_docs=os.getenv("DATA_PROCESSED_DOCS", "data/processed_docs"),
             processed_chunks=os.getenv("DATA_PROCESSED_CHUNKS", "data/processed_chunks"),
