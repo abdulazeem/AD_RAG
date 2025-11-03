@@ -21,6 +21,10 @@ class EvaluationMetrics(BaseModel):
         ...,
         description="Textual explanation justifying the faithfulness and correctness scores"
     )
+    raw_response: str = Field(
+        default="",
+        description="Raw LLM response from evaluation (for transparency)"
+    )
 
 
 class QuestionGroundTruth(BaseModel):
