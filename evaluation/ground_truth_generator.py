@@ -7,6 +7,7 @@ from datetime import datetime
 from embeddings.vector_store import VectorStore
 from generation.generator import Generator
 from config.settings import settings
+from observability.phoenix_prompt_manager import get_prompt_manager
 import numpy as np
 
 
@@ -23,6 +24,10 @@ class GroundTruthGenerator:
         self.backend = backend or settings.llm_backend
         self.vector_store = VectorStore(backend=self.backend)
         self.generator = Generator(backend=self.backend)
+
+        # Load prompts from Phoenix
+        self.question_gen_template = self._load_question_gen_prompt()
+        self.answer_gen_template = self._load_answer_gen_prompt()
 
     def sample_chunks(self, num_samples: int = 10, document_filter: List[str] = None) -> List[Dict[str, Any]]:
         """
@@ -78,17 +83,18 @@ class GroundTruthGenerator:
 
         return unique_samples[:num_samples]
 
-    def generate_question_from_context(self, context: str) -> str:
-        """
-        Generate a question from a context chunk using LLM.
-
-        Args:
-            context: Context text
-
-        Returns:
-            Generated question
-        """
-        prompt = f"""Based on the following context, generate ONE specific question that can be answered using ONLY the information in this context.
+    def _load_question_gen_prompt(self) -> str:
+        """Load question generation prompt from Phoenix with fallback."""
+        try:
+            prompt_manager = get_prompt_manager()
+            prompt_data = prompt_manager.get_prompt("question_generation")
+            print(f"[GroundTruthGenerator] Loaded prompt 'question_generation' version {prompt_data['version']} from Phoenix")
+            return prompt_data["template"]
+        except Exception as e:
+            print(f"[GroundTruthGenerator] Warning: Could not load question generation prompt from Phoenix: {e}")
+            print(f"[GroundTruthGenerator] Using default question generation prompt")
+            # Fallback to default
+            return """Based on the following context, generate ONE specific question that can be answered using ONLY the information in this context.
 
 Context:
 {context}
@@ -100,6 +106,37 @@ Generate a clear, specific question that:
 
 Question:"""
 
+    def _load_answer_gen_prompt(self) -> str:
+        """Load answer generation prompt from Phoenix with fallback."""
+        try:
+            prompt_manager = get_prompt_manager()
+            prompt_data = prompt_manager.get_prompt("ground_truth_answer")
+            print(f"[GroundTruthGenerator] Loaded prompt 'ground_truth_answer' version {prompt_data['version']} from Phoenix")
+            return prompt_data["template"]
+        except Exception as e:
+            print(f"[GroundTruthGenerator] Warning: Could not load answer generation prompt from Phoenix: {e}")
+            print(f"[GroundTruthGenerator] Using default answer generation prompt")
+            # Fallback to default
+            return """Answer the following question based STRICTLY on the provided context. Be precise and accurate.
+
+Context:
+{context}
+
+Question: {question}
+
+Answer:"""
+
+    def generate_question_from_context(self, context: str) -> str:
+        """
+        Generate a question from a context chunk using LLM.
+
+        Args:
+            context: Context text
+
+        Returns:
+            Generated question
+        """
+        prompt = self.question_gen_template.format(context=context)
         question, _ = self.generator.llm.generate(prompt)
         return question.strip()
 
@@ -114,15 +151,7 @@ Question:"""
         Returns:
             Ground truth answer
         """
-        prompt = f"""Answer the following question based STRICTLY on the provided context. Be precise and accurate.
-
-Context:
-{context}
-
-Question: {question}
-
-Answer:"""
-
+        prompt = self.answer_gen_template.format(context=context, question=question)
         answer, _ = self.generator.llm.generate(prompt)
         return answer.strip()
 

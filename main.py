@@ -19,7 +19,7 @@ def create_app() -> FastAPI:
     )
 
     # Initialize observability/tracing
-    init_tracing(service_name="rag_app_api")
+    init_tracing(service_name="rag_app_api2")
 
     # Include routers
     app.include_router(ingest.router, prefix="/api/v1/ingest", tags=["Ingest"])

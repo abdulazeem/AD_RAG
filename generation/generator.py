@@ -7,6 +7,7 @@ from llm.llm_base import LLMBackend
 from llm.llm_openai import OpenAILLM
 from llm.llm_ollama import OllamaLLM
 from langchain_core.prompts.prompt import PromptTemplate  # support for prompt templates :contentReference[oaicite:0]{index=0}
+from observability.phoenix_prompt_manager import get_prompt_manager
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -39,14 +40,30 @@ class Generator:
         else:
             raise ValueError(f"Unsupported LLM backend: {backend_name}")
 
-        # Load prompt template from file or use default
-        template_path = getattr(settings, 'prompt_template_path', None)
-        if template_path and os.path.isfile(template_path):
-            with open(template_path, "r", encoding="utf-8") as f:
-                template_str = f.read()
-        else:
-            # Default prompt template with conversation history
-            template_str = """You are a helpful AI assistant. Answer the user's question based on the provided context{history_note}.
+        # Load prompt template from Phoenix, file, or use default fallback
+        template_str = None
+        prompt_version = None
+
+        # Try to load from Phoenix first
+        try:
+            prompt_manager = get_prompt_manager()
+            prompt_data = prompt_manager.get_prompt("rag_generation")
+            template_str = prompt_data["template"]
+            prompt_version = prompt_data["version"]
+            print(f"[Generator] Loaded prompt 'rag_generation' version {prompt_version} from Phoenix")
+        except Exception as e:
+            print(f"[Generator] Warning: Could not load prompt from Phoenix: {e}")
+            print(f"[Generator] Falling back to file or default prompt")
+
+        # Fallback to file if Phoenix failed
+        if template_str is None:
+            template_path = getattr(settings, 'prompt_template_path', None)
+            if template_path and os.path.isfile(template_path):
+                with open(template_path, "r", encoding="utf-8") as f:
+                    template_str = f.read()
+            else:
+                # Default prompt template with conversation history
+                template_str = """You are a helpful AI assistant. Answer the user's question based on the provided context{history_note}.
 
 {conversation_history}Context:
 {context}
@@ -56,6 +73,7 @@ Question: {query}
 Answer:"""
 
         self.prompt_template: PromptTemplate = PromptTemplate.from_template(template_str)
+        self.prompt_version = prompt_version
 
     def build_prompt(
         self,

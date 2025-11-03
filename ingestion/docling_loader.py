@@ -143,66 +143,53 @@ def convert_document(source: str) -> Dict[str, Any]:
         # If metadata extraction fails, just use the source
         print(f"[DoclingLoader] Could not extract metadata: {e}")
 
-    # Extract page-level content with page numbers using doc.elements approach
+    # Extract page-level content - Simple approach: extract text per page
     pages_content = []
+
     try:
-        # Determine file type
-        file_ext = os.path.splitext(source)[1].lower() if not source.startswith('http') else '.pdf'
+        if hasattr(result, 'pages') and result.pages:
+            print(f"[DoclingLoader] Extracting {len(result.pages)} pages from result.pages")
 
-        # Try to extract using doc.elements with page_num attribute
-        if hasattr(doc, 'elements') and doc.elements:
-            print(f"[DoclingLoader] Found {len(doc.elements)} elements in document")
+            # Process each page
+            for page_obj in result.pages:
+                page_no = page_obj.page_no if hasattr(page_obj, 'page_no') else None
 
-            # Group elements by page number
-            pages_dict = {}
-            for elem in doc.elements:
-                page_num = getattr(elem, 'page_num', None)
-                text = getattr(elem, 'text', '').strip()
-
-                if page_num is not None and text:
-                    if page_num not in pages_dict:
-                        pages_dict[page_num] = []
-                    pages_dict[page_num].append(text)
-
-            # Convert to pages_content format
-            for page_no in sorted(pages_dict.keys()):
-                page_text = "\n\n".join(pages_dict[page_no])
-                if page_text.strip():
-                    # Remove image placeholder tags from page content
-                    page_text = page_text.replace("<!-- image -->", "").replace("<!-- image-->", "")
-                    pages_content.append({
-                        "page_number": page_no,
-                        "content": page_text
-                    })
-
-            if pages_content:
-                metadata["total_pages"] = len(pages_content)
-                print(f"[DoclingLoader] Extracted {len(pages_content)} pages with content using doc.elements")
-
-        # Fallback to old method if elements approach didn't work
-        if not pages_content and hasattr(doc, 'pages') and doc.pages:
-            print(f"[DoclingLoader] Falling back to doc.pages method - found {len(doc.pages)} pages")
-
-            for page_no in sorted(doc.pages.keys()):
+                # Export page text by filtering document items to this page
                 page_text = ""
+                try:
+                    if hasattr(doc, 'body') and hasattr(doc.body, 'iterate_items'):
+                        page_items = []
+                        for item in doc.body.iterate_items():
+                            # Check if item belongs to this page
+                            item_page_no = None
+                            if hasattr(item, 'prov') and item.prov:
+                                for prov in item.prov:
+                                    if hasattr(prov, 'page_no') and prov.page_no == page_no:
+                                        item_page_no = page_no
+                                        break
 
-                # Method: Get all text items from this page
-                if hasattr(doc, 'texts') and doc.texts:
-                    page_texts = []
-                    for text_item in doc.texts:
-                        # Check if text item belongs to this page
-                        if hasattr(text_item, 'prov') and text_item.prov:
-                            for prov in text_item.prov:
-                                if hasattr(prov, 'page_no') and prov.page_no == page_no:
-                                    if hasattr(text_item, 'text') and text_item.text:
-                                        page_texts.append(text_item.text)
-                                    break
-                    if page_texts:
-                        page_text = "\n\n".join(page_texts)
+                            if item_page_no == page_no:
+                                # Get text from this item
+                                item_text = None
+                                if hasattr(item, 'text') and item.text:
+                                    item_text = item.text
+                                elif hasattr(item, 'export_to_markdown'):
+                                    try:
+                                        item_text = item.export_to_markdown()
+                                    except:
+                                        pass
+
+                                if item_text and item_text.strip():
+                                    page_items.append(item_text)
+
+                        if page_items:
+                            page_text = "\n\n".join(page_items)
+
+                except Exception as e:
+                    print(f"[DoclingLoader] Error extracting page {page_no}: {e}")
 
                 if page_text and page_text.strip():
-                    # Remove image placeholder tags from page content
-                    page_text = page_text.replace("<!-- image -->", "").replace("<!-- image-->", "")
+                    # Store in pages_content
                     pages_content.append({
                         "page_number": page_no,
                         "content": page_text
@@ -210,10 +197,7 @@ def convert_document(source: str) -> Dict[str, Any]:
 
             if pages_content:
                 metadata["total_pages"] = len(pages_content)
-                print(f"[DoclingLoader] Extracted {len(pages_content)} pages with content using fallback method")
-
-        if not pages_content:
-            print(f"[DoclingLoader] No page-level content extracted")
+                print(f"[DoclingLoader] Extracted {len(pages_content)} pages")
 
     except Exception as e:
         print(f"[DoclingLoader] Could not extract page-level content: {e}")

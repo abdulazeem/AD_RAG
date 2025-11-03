@@ -40,15 +40,16 @@ class Chunker:
         # Instantiate semantic chunker
         self.chunker = SemanticChunker(self.embeddings)
 
-    def process_text(self, text: str, metadata: Dict[str, Any], pages: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def process_text(self, text: str, metadata: Dict[str, Any], pages: List[Dict[str, Any]] = None, char_to_page: Dict[int, int] = None) -> List[Dict[str, Any]]:
         """
         Process text and create chunks with metadata.
 
         Args:
             text: Full document text
             metadata: Base metadata for all chunks
-            pages: Optional list of page-level content with page numbers
+            pages: Optional list of page-level content with page numbers (deprecated, use char_to_page)
                   Format: [{"page_number": 1, "content": "..."}, ...]
+            char_to_page: Optional dict mapping character positions to page numbers
 
         Returns:
             List of chunks with metadata including page numbers
@@ -56,8 +57,8 @@ class Chunker:
         docs = self.chunker.create_documents([text], metadatas=[metadata])
         chunks = []
 
-        # Create page mapping if pages are provided
-        page_mapping = self._create_page_mapping(text, pages) if pages else {}
+        # Use char_to_page if provided, otherwise fall back to old page mapping method
+        page_mapping = char_to_page if char_to_page else (self._create_page_mapping(text, pages) if pages else {})
 
         for idx, doc in enumerate(docs):
             chunk_text = doc.page_content
@@ -65,7 +66,7 @@ class Chunker:
 
             # Add page information if available
             if page_mapping:
-                page_nums = self._find_chunk_pages(chunk_text, text, page_mapping)
+                page_nums = self._find_chunk_pages_direct(chunk_text, text, page_mapping)
                 if page_nums:
                     chunk_metadata["page_numbers"] = page_nums
                     chunk_metadata["page"] = page_nums[0]  # Primary page for backward compatibility
@@ -105,9 +106,43 @@ class Chunker:
 
         return page_mapping
 
+    def _find_chunk_pages_direct(self, chunk_text: str, full_text: str, page_mapping: Dict[int, int]) -> List[int]:
+        """
+        Find which pages a chunk spans using direct character position mapping.
+
+        Args:
+            chunk_text: The chunk's text
+            full_text: Complete document text
+            page_mapping: Mapping of character positions to page numbers
+
+        Returns:
+            List of page numbers the chunk appears on
+        """
+        # Find chunk position in full text
+        chunk_start = full_text.find(chunk_text)
+        if chunk_start == -1:
+            # If exact match fails, try fuzzy matching with first/last 50 chars
+            if len(chunk_text) > 100:
+                # Try to find the chunk by its beginning
+                search_text = chunk_text[:50]
+                chunk_start = full_text.find(search_text)
+
+        if chunk_start == -1:
+            return []
+
+        chunk_end = chunk_start + len(chunk_text)
+
+        # Find all unique page numbers in this character range
+        page_nums = set()
+        for pos in range(chunk_start, min(chunk_end, len(full_text))):
+            if pos in page_mapping:
+                page_nums.add(page_mapping[pos])
+
+        return sorted(list(page_nums))
+
     def _find_chunk_pages(self, chunk_text: str, full_text: str, page_mapping: Dict[int, int]) -> List[int]:
         """
-        Find which pages a chunk spans.
+        Find which pages a chunk spans (old method for backward compatibility).
 
         Args:
             chunk_text: The chunk's text

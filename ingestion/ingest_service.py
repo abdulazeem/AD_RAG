@@ -54,11 +54,40 @@ class IngestService:
             processed_path = os.path.join(self.processed_folder, processed_filename)
 
             try:
-                chunks = self.chunker.process_text(
-                    text=open(processed_path, "r", encoding="utf-8").read(),
-                    metadata={"source_file": processed_filename}
-                )
-                print(f"[IngestService] {source} → {len(chunks)} chunks")
+                # Process pages separately to preserve page numbers
+                original_filename = os.path.basename(source)
+                pages = doc_res.get("pages", [])
+
+                all_chunks = []
+
+                if pages:
+                    # Process each page separately
+                    print(f"[IngestService] Processing {len(pages)} pages separately...")
+                    for page_info in pages:
+                        page_no = page_info["page_number"]
+                        page_text = page_info["content"]
+
+                        # Create chunks for this page
+                        page_chunks = self.chunker.process_text(
+                            text=page_text,
+                            metadata={
+                                "source_file": original_filename,
+                                "page": page_no,
+                                "page_numbers": [page_no],
+                                **doc_res["metadata"]
+                            }
+                        )
+                        all_chunks.extend(page_chunks)
+                    print(f"[IngestService] {source} → {len(all_chunks)} chunks from {len(pages)} pages")
+                else:
+                    # Fallback: process full content without page numbers
+                    all_chunks = self.chunker.process_text(
+                        text=open(processed_path, "r", encoding="utf-8").read(),
+                        metadata={"source_file": original_filename, **doc_res["metadata"]}
+                    )
+                    print(f"[IngestService] {source} → {len(all_chunks)} chunks (no page info)")
+
+                chunks = all_chunks
 
                 # Step 2: build embedding vectors and store chunks
                 texts = [c["text"] for c in chunks]
@@ -102,14 +131,40 @@ class IngestService:
             f.write(doc_res["content"])
         print(f"[IngestService] Saved converted document to: {processed_path}")
 
-        # Pass page information if available
-        pages = doc_res.get("pages", None)
-        chunks = self.chunker.process_text(
-            text=doc_res["content"],
-            metadata={"source_file": processed_filename, **doc_res["metadata"]},
-            pages=pages
-        )
-        print(f"[IngestService] {file_path} → {len(chunks)} chunks")
+        # Process pages separately to preserve page numbers
+        original_filename = os.path.basename(file_path)
+        pages = doc_res.get("pages", [])
+
+        all_chunks = []
+
+        if pages:
+            # Process each page separately
+            print(f"[IngestService] Processing {len(pages)} pages separately...")
+            for page_info in pages:
+                page_no = page_info["page_number"]
+                page_text = page_info["content"]
+
+                # Create chunks for this page
+                page_chunks = self.chunker.process_text(
+                    text=page_text,
+                    metadata={
+                        "source_file": original_filename,
+                        "page": page_no,
+                        "page_numbers": [page_no],
+                        **doc_res["metadata"]
+                    }
+                )
+                all_chunks.extend(page_chunks)
+            print(f"[IngestService] {file_path} → {len(all_chunks)} chunks from {len(pages)} pages")
+        else:
+            # Fallback: process full content without page numbers
+            all_chunks = self.chunker.process_text(
+                text=doc_res["content"],
+                metadata={"source_file": original_filename, **doc_res["metadata"]}
+            )
+            print(f"[IngestService] {file_path} → {len(all_chunks)} chunks (no page info)")
+
+        chunks = all_chunks
 
         texts = [c["text"] for c in chunks]
         metadata_list = [c["metadata"] for c in chunks]
