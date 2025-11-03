@@ -4,6 +4,7 @@ import os
 import sys
 import requests
 import streamlit as st
+from phoenix.client import Client
 from datetime import datetime
 
 # Add parent directory to Python path so we can import config
@@ -220,6 +221,60 @@ def delete_chat_session(chat_id: str):
     except Exception as e:
         st.error(f"Error deleting chat: {str(e)}")
 
+def sidebar_prompt_version_selector(llm_backend: str):
+    """
+    Display prompt version selector in the Streamlit sidebar.
+    Fetches available prompt versions from Phoenix based on the LLM backend.
+    """
+    client = Client()
+    base_url = os.getenv("PHOENIX_BASE_URL", "http://localhost:6006")
+
+    # Pick prompt identifier dynamically
+    prompt_identifier = (
+        settings.prompts.openai_prompt if llm_backend == "openai"
+        else settings.prompts.ollama_prompt
+    )
+
+    st.subheader("🧠 Prompt Version")
+    try:
+        # Fetch available prompt versions from Phoenix REST API
+        resp = requests.get(
+            f"{base_url}/v1/prompts/{prompt_identifier}/versions",
+            params={"limit": 20},
+            timeout=10
+        )
+
+        if resp.status_code == 200:
+            data = resp.json()
+            versions = data.get("data", [])
+        else:
+            versions = []
+            st.warning(f"Unable to fetch prompt versions ({resp.status_code})")
+
+    except Exception as e:
+        versions = []
+        st.error(f"Error fetching prompt versions: {str(e)}")
+
+    # Build selection dropdown
+    if versions:
+        version_labels = {
+            v["id"]: f"{v['id']} ({v.get('model_name', 'unknown')} - {v.get('created_at', 'n/a')})"
+            for v in versions
+        }
+
+        selected_vid = st.selectbox(
+            "Select prompt version",
+            options=list(version_labels.keys()),
+            format_func=lambda vid: version_labels[vid],
+            key=f"prompt_version_{llm_backend}"
+        )
+
+        st.session_state.selected_prompt_version_id = selected_vid
+    else:
+        st.info("No prompt versions available.")
+        st.session_state.selected_prompt_version_id = None
+
+    return st.session_state.get("selected_prompt_version_id")
 
 def sidebar_settings():
     """Render sidebar with settings and document upload."""
@@ -279,6 +334,12 @@ def sidebar_settings():
             st.caption(f"🌐 Model: {settings.openai.model}")
         else:
             st.caption(f"🏠 Model: {settings.ollama.model}")
+        if "last_backend" not in st.session_state or st.session_state.last_backend != llm_backend:
+            st.session_state.selected_prompt_version_id = None
+        st.session_state.last_backend = llm_backend
+
+        sidebar_prompt_version_selector(llm_backend)
+
 
         # Display available documents with selector
         st.markdown("#### 📚 Document Filter")
@@ -411,8 +472,10 @@ def chat_tab(llm_backend, top_k):
                         "top_k": top_k,
                         "llm_backend": llm_backend,
                         "chat_session_id": st.session_state.current_chat_id,
-                        "selected_documents": st.session_state.selected_documents if st.session_state.selected_documents else None
+                        "selected_documents": st.session_state.selected_documents if st.session_state.selected_documents else None,
+                        "prompt_version_id": st.session_state.get("selected_prompt_version_id")
                     }
+
                     response = requests.post(QUERY_ENDPOINT, json=payload)
 
                     if response.status_code == 200:

@@ -2,9 +2,15 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from generation.api.routers import query, ingest, admin, chat, rerank
-from observability.arize_setup import init_tracing
+from generation.api.routers import query, ingest, admin, chat, rerank, prompts
 from database.init_db import init_db
+
+# # Optional: Phoenix OpenTelemetry instrumentation
+# try:
+#     from phoenix.otel import register
+#     register(project_name="rag-service", endpoint="http://localhost:4317")
+# except ImportError:
+#     print("Phoenix tracing not found — skipping OpenTelemetry registration.")
 
 def create_app() -> FastAPI:
     app = FastAPI(title="RAG Service API")
@@ -18,19 +24,19 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Initialize observability/tracing
-    init_tracing(service_name="rag_app_api")
-
     # Include routers
     app.include_router(ingest.router, prefix="/api/v1/ingest", tags=["ingest"])
     app.include_router(query.router, prefix="/api/v1/query", tags=["query"])
     app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
     app.include_router(chat.router, prefix="/api/v1/chat", tags=["chat"])
     app.include_router(rerank.router, prefix="/api/v1/rerank", tags=["rerank"])
+    app.include_router(prompts.router)
 
     return app
 
+
 app = create_app()
+
 
 @app.on_event("startup")
 def on_startup():
