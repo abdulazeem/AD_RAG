@@ -40,6 +40,8 @@ class QueryResponse(BaseModel):
     used_chunks: List[DocumentChunk]
     cost_usd: float
     chat_session_id: str  # The chat session ID (new or existing)
+    retrieved_count: Optional[int] = None  # Number of chunks retrieved before reranking
+    reranked_count: Optional[int] = None  # Number of chunks after reranking
 
 class ChatSessionResponse(BaseModel):
     id: str

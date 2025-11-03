@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  # -----------------------------
+  # PostgreSQL with pgvector
+  # -----------------------------
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: rag-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 789456123
+      POSTGRES_DB: rag-db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -----------------------------
+  # Ollama (LLM + Embeddings)
+  # -----------------------------
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rag-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "ollama serve & 
+      sleep 5 && 
+      ollama pull nomic-embed-text && 
+      ollama pull llama3.2 && 
+      wait"
+
+  # -----------------------------
+  # Arize Phoenix (Observability)
+  # -----------------------------
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    container_name: rag-phoenix
+    ports:
+      - "6006:6006"
+    environment:
+      PHOENIX_PORT: 6006
+
+  # -----------------------------
+  # FastAPI Application
+  # -----------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      phoenix:
+        condition: service_started
+      ollama:
+        condition: service_started
+    environment:
+      # Database
+      DATABASE_URL: postgresql://postgres:789456123@postgres:5432/rag-db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 789456123
+      POSTGRES_DB: rag-db
+
+      # LLM + Embeddings (Ollama)
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: llama3.2:latest
+      OLLAMA_RERANKER_MODEL: llama3.2:latest
+      OLLAMA_TIMEOUT: 120
+
+      # OpenAI (optional if you use both backends)
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+
+      # Backend selection
+      LLM_BACKEND: ${LLM_BACKEND:-ollama}
+      EMBEDDING_BACKEND: ${EMBEDDING_BACKEND:-ollama}
+
+      # Observability
+      PHOENIX_COLLECTOR_ENDPOINT: http://phoenix:6006
+
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "8000:8000"
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+
+# -----------------------------
+# Volumes
+# -----------------------------
+volumes:
+  postgres_data:
+  ollama_models:

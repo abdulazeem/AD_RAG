@@ -21,12 +21,12 @@ class RerankerPointwise:
         if backend_name == "openai":
             self.llm: LLMBackend = OpenAILLM(
                 api_key=settings.openai.api_key,
-                model=settings.openai.model
+                model=settings.openai.reranker_model  # Use reranker-specific model
             )
         elif backend_name == "ollama":
             self.llm: LLMBackend = OllamaLLM(
                 host=settings.ollama.host,
-                model=settings.ollama.model
+                model=settings.ollama.reranker_model  # Use reranker-specific model
             )
         else:
             raise ValueError(f"Unsupported LLM backend for reranking: {backend_name}")

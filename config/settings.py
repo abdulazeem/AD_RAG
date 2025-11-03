@@ -17,12 +17,14 @@ class AppSettings(BaseModel):
 class OpenAISettings(BaseModel):
     api_key: str
     model: str
+    reranker_model: str
     timeout_seconds: int
 
 
 class OllamaSettings(BaseModel):
     host: str
     model: str
+    reranker_model: str
     timeout_seconds: int
 
 
@@ -96,11 +98,13 @@ def load_settings() -> Settings:
         openai=OpenAISettings(
             api_key=os.getenv("OPENAI_API_KEY", ""),
             model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            reranker_model=os.getenv("OPENAI_RERANKER_MODEL", "gpt-4o"),
             timeout_seconds=int(os.getenv("OPENAI_TIMEOUT", "120"))
         ),
         ollama=OllamaSettings(
             host=os.getenv("OLLAMA_HOST", "http://localhost:11434"),
             model=os.getenv("OLLAMA_MODEL", "llama3.2:latest"),
+            reranker_model=os.getenv("OLLAMA_RERANKER_MODEL", "llama3.2:latest"),
             timeout_seconds=int(os.getenv("OLLAMA_TIMEOUT", "120"))
         ),
         retrieval=RetrievalSettings(

@@ -26,16 +26,19 @@ class RetrievalPipeline:
         self,
         query: str,
         document_filter: Optional[List[str]] = None
-    ) -> List[Dict[str, Any]]:
+    ) -> tuple[List[Dict[str, Any]], Dict[str, int]]:
         """
         Full pipeline:
           1. Retrieve top K candidate chunks via vector store.
           2. Rerank them point-wise with LLM.
-          3. Return the top M reranked chunks.
+          3. Return the top M reranked chunks along with retrieval stats.
 
         Args:
             query: Query string
             document_filter: Optional list of document filenames to filter by
+
+        Returns:
+            Tuple of (reranked chunks, retrieval stats dict)
         """
         # Step 1: retrieval with optional document filter
         candidates = self.retriever.retrieve(query, document_filter=document_filter)
@@ -48,4 +51,10 @@ class RetrievalPipeline:
             top_m=self.rerank_top_m
         )
 
-        return reranked
+        # Step 3: prepare retrieval stats
+        retrieval_stats = {
+            "retrieved_count": len(candidates),
+            "reranked_count": len(reranked)
+        }
+
+        return reranked, retrieval_stats
