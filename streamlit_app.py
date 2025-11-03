@@ -465,9 +465,19 @@ def chat_tab(llm_backend, top_k):
                         # Show sources
                         if used_chunks:
                             with st.expander("📚 View Sources"):
+                                # DEBUG: Print chunk structure
+                                st.write("DEBUG - Chunk structure:", type(used_chunks[0]) if used_chunks else "No chunks")
+                                if used_chunks:
+                                    st.write("DEBUG - First chunk keys:", used_chunks[0].keys() if isinstance(used_chunks[0], dict) else dir(used_chunks[0]))
+                                    st.write("DEBUG - First chunk:", used_chunks[0])
+
                                 for idx, chunk in enumerate(used_chunks, 1):
                                     metadata = chunk.get('metadata', {})
                                     st.markdown(f"**Source {idx}**")
+
+                                    # DEBUG: Show what's in metadata
+                                    st.write(f"DEBUG - metadata keys: {list(metadata.keys())}")
+                                    st.write(f"DEBUG - metadata: {metadata}")
 
                                     # Display file name
                                     file_name = metadata.get('source_file', 'Unknown')

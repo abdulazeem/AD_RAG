@@ -59,6 +59,12 @@ class Chunker:
         # Create page mapping if pages are provided
         page_mapping = self._create_page_mapping(text, pages) if pages else {}
 
+        # Try position-based mapping if exact matching fails
+        position_based = False
+        if pages and not page_mapping:
+            print(f"[Chunker] Text matching failed, using position-based page assignment")
+            position_based = True
+
         for idx, doc in enumerate(docs):
             chunk_text = doc.page_content
             chunk_metadata = {**metadata, "chunk_index": idx}
@@ -69,11 +75,22 @@ class Chunker:
                 if page_nums:
                     chunk_metadata["page_numbers"] = page_nums
                     chunk_metadata["page"] = page_nums[0]  # Primary page for backward compatibility
+            elif position_based and pages:
+                # Fallback: estimate page based on chunk position in document
+                page_num = self._estimate_page_by_position(idx, len(docs), len(pages))
+                if page_num:
+                    chunk_metadata["page_numbers"] = [page_num]
+                    chunk_metadata["page"] = page_num
 
             chunks.append({
                 "text": chunk_text,
                 "metadata": chunk_metadata
             })
+
+        # Debug logging
+        chunks_with_pages = sum(1 for c in chunks if c['metadata'].get('page_numbers'))
+        print(f"[Chunker] {chunks_with_pages}/{len(chunks)} chunks assigned page numbers")
+
         return chunks
 
     def _create_page_mapping(self, full_text: str, pages: List[Dict[str, Any]]) -> Dict[int, int]:
@@ -131,6 +148,32 @@ class Chunker:
                 page_nums.add(page_mapping[pos])
 
         return sorted(list(page_nums))
+
+    def _estimate_page_by_position(self, chunk_idx: int, total_chunks: int, total_pages: int) -> int:
+        """
+        Estimate page number based on chunk position when exact matching fails.
+
+        Args:
+            chunk_idx: Index of current chunk
+            total_chunks: Total number of chunks
+            total_pages: Total number of pages in document
+
+        Returns:
+            Estimated page number
+        """
+        if total_chunks == 0 or total_pages == 0:
+            return None
+
+        # Calculate approximate position (0.0 to 1.0)
+        position = chunk_idx / total_chunks
+
+        # Map to page number (1-indexed)
+        page_num = int(position * total_pages) + 1
+
+        # Clamp to valid range
+        page_num = max(1, min(page_num, total_pages))
+
+        return page_num
 
     def process_folder(self, folder_path: str) -> List[Dict[str, Any]]:
         if not os.path.isdir(folder_path):

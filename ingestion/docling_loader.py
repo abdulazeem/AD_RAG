@@ -143,32 +143,60 @@ def convert_document(source: str) -> Dict[str, Any]:
         # If metadata extraction fails, just use the source
         print(f"[DoclingLoader] Could not extract metadata: {e}")
 
-    # Extract page-level content with page numbers using doc.elements approach
+    # Extract page-level content with page numbers
+    # IMPORTANT: Extract pages in the same format as the main content export
     pages_content = []
     try:
         # Determine file type
         file_ext = os.path.splitext(source)[1].lower() if not source.startswith('http') else '.pdf'
 
-        # Try to extract using doc.elements with page_num attribute
-        if hasattr(doc, 'elements') and doc.elements:
-            print(f"[DoclingLoader] Found {len(doc.elements)} elements in document")
+        # Strategy: Use doc.body.iterate_items() to get items with page info
+        # This gives us both the content AND page numbers in the correct format
+        if hasattr(doc, 'body') and hasattr(doc.body, 'iterate_items'):
+            print(f"[DoclingLoader] Extracting pages using body.iterate_items()...")
 
-            # Group elements by page number
             pages_dict = {}
-            for elem in doc.elements:
-                page_num = getattr(elem, 'page_num', None)
-                text = getattr(elem, 'text', '').strip()
+            items_with_page = 0
+            items_without_page = 0
 
-                if page_num is not None and text:
+            for item in doc.body.iterate_items():
+                # Get page number from provenance
+                page_num = None
+                if hasattr(item, 'prov') and item.prov:
+                    if isinstance(item.prov, list) and len(item.prov) > 0:
+                        prov_item = item.prov[0]
+                        if hasattr(prov_item, 'page_no'):
+                            page_num = prov_item.page_no
+                        elif hasattr(prov_item, 'page'):
+                            page_num = prov_item.page
+
+                # Get text content - try markdown first, then text
+                item_text = None
+                try:
+                    if hasattr(item, 'export_to_markdown'):
+                        item_text = item.export_to_markdown()
+                    elif hasattr(item, 'export_to_text'):
+                        item_text = item.export_to_text()
+                    elif hasattr(item, 'text'):
+                        item_text = item.text
+                except:
+                    pass
+
+                if page_num is not None and item_text and item_text.strip():
+                    items_with_page += 1
                     if page_num not in pages_dict:
                         pages_dict[page_num] = []
-                    pages_dict[page_num].append(text)
+                    pages_dict[page_num].append(item_text)
+                elif item_text and item_text.strip():
+                    items_without_page += 1
+
+            print(f"[DoclingLoader] Items with page info: {items_with_page}, without: {items_without_page}")
 
             # Convert to pages_content format
             for page_no in sorted(pages_dict.keys()):
                 page_text = "\n\n".join(pages_dict[page_no])
                 if page_text.strip():
-                    # Remove image placeholder tags from page content
+                    # Remove image placeholder tags
                     page_text = page_text.replace("<!-- image -->", "").replace("<!-- image-->", "")
                     pages_content.append({
                         "page_number": page_no,
@@ -177,11 +205,47 @@ def convert_document(source: str) -> Dict[str, Any]:
 
             if pages_content:
                 metadata["total_pages"] = len(pages_content)
-                print(f"[DoclingLoader] Extracted {len(pages_content)} pages with content using doc.elements")
+                page_nums = [p["page_number"] for p in pages_content]
+                print(f"[DoclingLoader] Extracted {len(pages_content)} pages using body.iterate_items()")
+                print(f"[DoclingLoader] Page numbers: {min(page_nums)} to {max(page_nums)}")
 
-        # Fallback to old method if elements approach didn't work
+        # Fallback: Try doc.elements approach (legacy)
+        if not pages_content and hasattr(doc, 'elements') and doc.elements:
+            print(f"[DoclingLoader] Fallback: Trying doc.elements (found {len(doc.elements)} elements)")
+
+            pages_dict = {}
+            for elem in doc.elements:
+                page_num = None
+                if hasattr(elem, 'prov') and elem.prov:
+                    if isinstance(elem.prov, list) and len(elem.prov) > 0:
+                        prov_item = elem.prov[0]
+                        if hasattr(prov_item, 'page_no'):
+                            page_num = prov_item.page_no
+
+                text = getattr(elem, 'text', '').strip()
+                if page_num is not None and text:
+                    if page_num not in pages_dict:
+                        pages_dict[page_num] = []
+                    pages_dict[page_num].append(text)
+
+            for page_no in sorted(pages_dict.keys()):
+                page_text = "\n\n".join(pages_dict[page_no])
+                if page_text.strip():
+                    page_text = page_text.replace("<!-- image -->", "").replace("<!-- image-->", "")
+                    pages_content.append({
+                        "page_number": page_no,
+                        "content": page_text
+                    })
+
+            if pages_content:
+                metadata["total_pages"] = len(pages_content)
+                page_nums = [p["page_number"] for p in pages_content]
+                print(f"[DoclingLoader] Extracted {len(pages_content)} pages using doc.elements fallback")
+                print(f"[DoclingLoader] Page numbers: {min(page_nums)} to {max(page_nums)}")
+
+        # Last fallback: doc.pages method (legacy)
         if not pages_content and hasattr(doc, 'pages') and doc.pages:
-            print(f"[DoclingLoader] Falling back to doc.pages method - found {len(doc.pages)} pages")
+            print(f"[DoclingLoader] Last fallback: doc.pages method (found {len(doc.pages)} pages)")
 
             for page_no in sorted(doc.pages.keys()):
                 page_text = ""

@@ -50,15 +50,31 @@ class IngestService:
 
         for doc_res in conversion_results:
             source = doc_res["metadata"]["source"]
-            processed_filename = os.path.splitext(os.path.basename(source))[0] + ".md"
+            original_filename = os.path.basename(source)
+            processed_filename = os.path.splitext(original_filename)[0] + ".md"
             processed_path = os.path.join(self.processed_folder, processed_filename)
 
             try:
+                # Pass page information if available
+                pages = doc_res.get("pages", None)
+
+                # Use original filename (e.g., check2.pdf) not processed filename (check2.md)
+                metadata = {
+                    "source_file": original_filename,
+                    **doc_res["metadata"]
+                }
+
                 chunks = self.chunker.process_text(
                     text=open(processed_path, "r", encoding="utf-8").read(),
-                    metadata={"source_file": processed_filename}
+                    metadata=metadata,
+                    pages=pages
                 )
                 print(f"[IngestService] {source} → {len(chunks)} chunks")
+                if pages:
+                    print(f"[IngestService] Using page-level information from {len(pages)} pages")
+                    # Debug: Check if page numbers are in chunks
+                    chunks_with_pages = sum(1 for c in chunks if c['metadata'].get('page_numbers'))
+                    print(f"[IngestService] {chunks_with_pages}/{len(chunks)} chunks have page numbers")
 
                 # Step 2: build embedding vectors and store chunks
                 texts = [c["text"] for c in chunks]
@@ -93,7 +109,8 @@ class IngestService:
         doc_res = convert_document(file_path)
         print(f"[IngestService] Converted single document: {file_path}")
 
-        processed_filename = os.path.splitext(os.path.basename(file_path))[0] + ".md"
+        original_filename = os.path.basename(file_path)
+        processed_filename = os.path.splitext(original_filename)[0] + ".md"
         processed_path = os.path.join(self.processed_folder, processed_filename)
 
         # Write the converted content to disk
@@ -104,12 +121,27 @@ class IngestService:
 
         # Pass page information if available
         pages = doc_res.get("pages", None)
+
+        # Use original filename (e.g., check2.pdf) not processed filename (check2.md)
+        metadata = {
+            "source_file": original_filename,
+            **doc_res["metadata"]
+        }
+
         chunks = self.chunker.process_text(
             text=doc_res["content"],
-            metadata={"source_file": processed_filename, **doc_res["metadata"]},
+            metadata=metadata,
             pages=pages
         )
         print(f"[IngestService] {file_path} → {len(chunks)} chunks")
+
+        if pages:
+            print(f"[IngestService] Document has {len(pages)} pages")
+            # Debug: Check if page numbers are in chunks
+            chunks_with_pages = sum(1 for c in chunks if c['metadata'].get('page_numbers'))
+            print(f"[IngestService] {chunks_with_pages}/{len(chunks)} chunks have page numbers")
+        else:
+            print(f"[IngestService] WARNING: No page information extracted from document")
 
         texts = [c["text"] for c in chunks]
         metadata_list = [c["metadata"] for c in chunks]
