@@ -2,8 +2,6 @@
 
 from typing import List, Dict, Any, Optional
 from config.settings import settings
-from embeddings.vector_store import VectorStore
-from embeddings.embedder import Embedder
 from .retriever import Retriever
 from .reranker_pointwise import RerankerPointwise
 from dotenv import load_dotenv

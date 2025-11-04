@@ -3,11 +3,16 @@
 import os
 from typing import Optional
 from pydantic import BaseModel
+from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
 
+
+class PromptSettings(BaseSettings):
+    openai_prompt: str = "openai_prompt"   # your actual identifier in Phoenix
+    ollama_prompt: str = "ollama_prompt"
 
 class AppSettings(BaseModel):
     name: str
@@ -83,6 +88,8 @@ class Settings(BaseModel):
     logging: LoggingSettings
     data: DataSettings
     prompt_template_path: Optional[str] = None
+    prompts: PromptSettings = PromptSettings()
+
 
 
 def load_settings() -> Settings:

@@ -33,7 +33,7 @@ async def get_chat_messages(chat_session_id: str):
             role=m["role"],
             content=m["content"],
             sources=m.get("sources"),
-            cost=m.get("cost"),
+            cost=None,  # Phoenix handles cost tracking — no need to store locally
             timestamp=m["timestamp"].isoformat()
         )
         for m in messages

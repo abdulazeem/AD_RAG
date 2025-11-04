@@ -2,24 +2,20 @@
 
 from typing import List, Dict, Any
 import os
+from dotenv import load_dotenv
+from phoenix.client import Client
 from config.settings import settings
 from llm.llm_base import LLMBackend
 from llm.llm_openai import OpenAILLM
 from llm.llm_ollama import OllamaLLM
-from langchain_core.prompts.prompt import PromptTemplate  # support for prompt templates :contentReference[oaicite:0]{index=0}
-from observability.phoenix_prompt_manager import get_prompt_manager
-from dotenv import load_dotenv
+from observability.phoenix_tracer import init_phoenix_tracing
+
 load_dotenv()
+# Phoenix tracing is initialized in main.py startup
+init_phoenix_tracing(project_name="rag-llm-app")  # Idempotent - safe to call multiple times
 
 class Generator:
     def __init__(self, backend: str = None):
-        """
-        Initialize Generator with specified LLM backend.
-
-        Args:
-            backend: LLM backend to use ("openai" or "ollama").
-                    If None, uses settings.llm_backend as default.
-        """
         backend_name = (backend or settings.llm_backend).lower()
 
         if backend_name == "openai":
@@ -28,96 +24,39 @@ class Generator:
                 model=settings.openai.model,
                 timeout=settings.openai.timeout_seconds
             )
-            self.backend_name = "openai"
-            self.model_name = settings.openai.model
+            self.prompt_identifier = settings.prompts.openai_prompt  # use identifier
         elif backend_name == "ollama":
             self.llm: LLMBackend = OllamaLLM(
                 host=settings.ollama.host,
                 model=settings.ollama.model
             )
-            self.backend_name = "ollama"
-            self.model_name = settings.ollama.model
+            self.prompt_identifier = settings.prompts.ollama_prompt  # use identifier
         else:
             raise ValueError(f"Unsupported LLM backend: {backend_name}")
 
-        # Load prompt template from Phoenix, file, or use default fallback
-        template_str = None
-        prompt_version = None
+        # Load prompt version from Phoenix
+        client = Client()
+        prompt_obj = client.prompts.get(prompt_identifier=self.prompt_identifier)
+        self.prompt_version = prompt_obj
 
-        # Try to load from Phoenix first
-        try:
-            prompt_manager = get_prompt_manager()
-            prompt_data = prompt_manager.get_prompt("rag_generation")
-            template_str = prompt_data["template"]
-            prompt_version = prompt_data["version"]
-            print(f"[Generator] Loaded prompt 'rag_generation' version {prompt_version} from Phoenix")
-        except Exception as e:
-            print(f"[Generator] Warning: Could not load prompt from Phoenix: {e}")
-            print(f"[Generator] Falling back to file or default prompt")
-
-        # Fallback to file if Phoenix failed
-        if template_str is None:
-            template_path = getattr(settings, 'prompt_template_path', None)
-            if template_path and os.path.isfile(template_path):
-                with open(template_path, "r", encoding="utf-8") as f:
-                    template_str = f.read()
-            else:
-                # Default prompt template with conversation history
-                template_str = """You are a helpful AI assistant. Answer the user's question based on the provided context{history_note}.
-
-{conversation_history}Context:
-{context}
-
-Question: {query}
-
-Answer:"""
-
-        self.prompt_template: PromptTemplate = PromptTemplate.from_template(template_str)
-        self.prompt_version = prompt_version
-
-    def build_prompt(
+    def build_prompt_variables(
         self,
         query: str,
         chunks: List[Dict[str, Any]],
         conversation_history: List[Dict[str, str]] = None
-    ) -> str:
-        """
-        Builds the prompt string given a user query, list of chunk dicts, and conversation history.
-
-        Args:
-            query: Current user query
-            chunks: List of retrieved context chunks with 'text' and 'metadata'
-            conversation_history: List of previous messages with 'role' and 'content'
-        """
-        # Combine chunk texts into one context string
-        context = "\n\n".join([chunk["text"] for chunk in chunks])
-
-        # Format conversation history
-        if conversation_history and len(conversation_history) > 0:
-            # Limit to last 10 messages to avoid token overflow
-            recent_history = conversation_history[-10:]
-
-            history_text = "Previous Conversation:\n"
-            for msg in recent_history:
-                role = msg.get("role", "unknown")
-                content = msg.get("content", "")
-                if role == "user":
-                    history_text += f"User: {content}\n"
-                elif role == "assistant":
-                    history_text += f"Assistant: {content}\n"
-            history_text += "\n"
-            history_note = " and our previous conversation"
-        else:
-            history_text = ""
-            history_note = ""
-
-        prompt = self.prompt_template.format(
-            query=query,
-            context=context,
-            conversation_history=history_text,
-            history_note=history_note
-        )
-        return prompt
+    ) -> Dict[str, Any]:
+        context = "\n\n".join([c["text"] for c in chunks])
+        history_text = ""
+        if conversation_history:
+            for msg in conversation_history[-10:]:
+                role = msg.get("role")
+                content = msg.get("content")
+                history_text += f"{role.capitalize()}: {content}\n"
+        return {
+            "query": query,
+            "context": context,
+            "conversation_history": history_text.strip(),
+        }
 
     def generate_answer(
         self,
@@ -126,17 +65,48 @@ Answer:"""
         conversation_history: List[Dict[str, str]] = None,
         **kwargs
     ):
-        """
-        Generate an answer to the query using provided context chunks and conversation history.
+        # Format the prompt using Phoenix prompt version
+        variables = self.build_prompt_variables(query, chunks, conversation_history)
+        formatted = self.prompt_version.format(variables=variables)
 
-        Args:
-            query: Current user query
-            chunks: List of retrieved context chunks
-            conversation_history: List of previous messages with 'role' and 'content'
+        # Invoke the correct LLM
+        if isinstance(self.llm, OpenAILLM):
+            # Phoenix returns {"messages": [...], "model": "...", "temperature": ...}
+            # Send it directly to OpenAI chat endpoint
+            response = self.llm.client.chat.completions.create(**formatted)
+            answer = response.choices[0].message.content
 
-        Returns:
-            Tuple of (answer text, usage dict with prompt_tokens and completion_tokens)
-        """
-        prompt = self.build_prompt(query, chunks, conversation_history)
-        answer, usage = self.llm.generate(prompt, **kwargs)
+            # Extract usage information from response
+            usage = {
+                "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
+                "completion_tokens": response.usage.completion_tokens if response.usage else 0,
+                "total_tokens": response.usage.total_tokens if response.usage else 0
+            }
+        else:  # OllamaLLM
+            # Phoenix returns messages format, need to convert to single prompt string
+            # Check if formatted has "messages" key (chat format) or "prompt" key (completion format)
+            if "messages" in formatted:
+                # Convert messages to a single prompt string
+                messages = formatted.get("messages", [])
+                ollama_prompt = ""
+                for msg in messages:
+                    role = msg.get("role", "")
+                    content = msg.get("content", "")
+                    if role == "system":
+                        ollama_prompt += f"System: {content}\n\n"
+                    elif role == "user":
+                        ollama_prompt += f"User: {content}\n\n"
+                    elif role == "assistant":
+                        ollama_prompt += f"Assistant: {content}\n\n"
+                    else:
+                        ollama_prompt += f"{content}\n\n"
+                ollama_prompt = ollama_prompt.strip()
+            else:
+                # Fallback to prompt key if present
+                ollama_prompt = formatted.get("prompt", "")
+
+            response, usage = self.llm.generate(ollama_prompt, **kwargs)
+            answer = response
+
         return answer, usage
+

@@ -2,12 +2,18 @@
 
 import os
 from typing import List, Dict, Any
+from dotenv import load_dotenv
+from opentelemetry.trace import SpanKind
 from config.settings import settings
+from observability.phoenix_tracer import init_phoenix_tracing
+
+# Phoenix tracing is initialized in main.py startup - this call is idempotent
+tracer = init_phoenix_tracing()
 from config.backend_config import BackendConfig
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain_openai import OpenAIEmbeddings
 from langchain_ollama.embeddings import OllamaEmbeddings
-from dotenv import load_dotenv
+
 load_dotenv()
 
 
@@ -19,14 +25,13 @@ class Chunker:
             backend: The embedding backend to use ('openai' or 'ollama').
                     If None, uses settings.embedding_backend.
         """
-        # Use provided backend or fall back to settings
         self.backend = (backend or settings.embedding_backend).lower()
 
         # Get dynamic configuration for this backend
         config = BackendConfig.get_config(self.backend)
         model_name = config["embedding_model"]
 
-        # Choose embedding backend based on config
+        # Choose embedding backend
         if self.backend == "openai":
             self.embeddings = OpenAIEmbeddings(model=model_name)
         elif self.backend == "ollama":
@@ -37,74 +42,48 @@ class Chunker:
         else:
             raise ValueError(f"Unsupported embedding backend: {self.backend}")
 
-        # Instantiate semantic chunker
+        # Semantic chunker uses chosen embedding model for semantic boundaries
         self.chunker = SemanticChunker(self.embeddings)
 
-    def process_text(self, text: str, metadata: Dict[str, Any], pages: List[Dict[str, Any]] = None, char_to_page: Dict[int, int] = None) -> List[Dict[str, Any]]:
-        """
-        Process text and create chunks with metadata.
+    def process_text(self, text: str, metadata: Dict[str, Any], pages: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        with tracer.start_as_current_span("chunking.process_text", kind=SpanKind.INTERNAL) as span:
+            span.set_attribute("chunking.backend", self.backend)
+            span.set_attribute("chunking.model", self.embeddings.model)
+            span.set_attribute("chunking.text_length", len(text))
+            if self.backend == "ollama":
+                span.set_attribute("llm.total_cost_usd", 0.0)
 
-        Args:
-            text: Full document text
-            metadata: Base metadata for all chunks
-            pages: Optional list of page-level content with page numbers (deprecated, use char_to_page)
-                  Format: [{"page_number": 1, "content": "..."}, ...]
-            char_to_page: Optional dict mapping character positions to page numbers
+            try:
+                docs = self.chunker.create_documents([text], metadatas=[metadata])
+                chunks = []
 
-        Returns:
-            List of chunks with metadata including page numbers
-        """
-        docs = self.chunker.create_documents([text], metadatas=[metadata])
-        chunks = []
+                # Create page mapping if pages are provided
+                page_mapping = self._create_page_mapping(text, pages) if pages else {}
 
-        # Use char_to_page if provided, otherwise fall back to old page mapping method
-        page_mapping = char_to_page if char_to_page else (self._create_page_mapping(text, pages) if pages else {})
+                for idx, doc in enumerate(docs):
+                    chunk_text = doc.page_content
+                    chunk_metadata = {**metadata, "chunk_index": idx}
 
-        # Try position-based mapping if exact matching fails
-        position_based = False
-        if pages and not page_mapping:
-            print(f"[Chunker] Text matching failed, using position-based page assignment")
-            position_based = True
+                    # Add page info if available
+                    if page_mapping:
+                        page_nums = self._find_chunk_pages(chunk_text, text, page_mapping)
+                        if page_nums:
+                            chunk_metadata["page_numbers"] = page_nums
+                            chunk_metadata["page"] = page_nums[0]
 
-        for idx, doc in enumerate(docs):
-            chunk_text = doc.page_content
-            chunk_metadata = {**metadata, "chunk_index": idx}
+                    chunks.append({"text": chunk_text, "metadata": chunk_metadata})
 
-            # Add page information if available
-            if page_mapping:
-                page_nums = self._find_chunk_pages_direct(chunk_text, text, page_mapping)
-                if page_nums:
-                    chunk_metadata["page_numbers"] = page_nums
-                    chunk_metadata["page"] = page_nums[0]  # Primary page for backward compatibility
-            elif position_based and pages:
-                # Fallback: estimate page based on chunk position in document
-                page_num = self._estimate_page_by_position(idx, len(docs), len(pages))
-                if page_num:
-                    chunk_metadata["page_numbers"] = [page_num]
-                    chunk_metadata["page"] = page_num
+                span.set_attribute("num_chunks", len(chunks))
+                return chunks
 
-            chunks.append({
-                "text": chunk_text,
-                "metadata": chunk_metadata
-            })
+            except Exception as e:
+                span.record_exception(e)
+                raise e
 
-        # Debug logging
-        chunks_with_pages = sum(1 for c in chunks if c['metadata'].get('page_numbers'))
-        print(f"[Chunker] {chunks_with_pages}/{len(chunks)} chunks assigned page numbers")
-
-        return chunks
-
-    def _create_page_mapping(self, full_text: str, pages: List[Dict[str, Any]]) -> Dict[int, int]:
-        """
-        Create a mapping of character positions to page numbers.
-
-        Args:
-            full_text: Complete document text
-            pages: List of page-level content
-
-        Returns:
-            Dict mapping text position to page number
-        """
+    def _create_page_mapping(
+        self, full_text: str, pages: List[Dict[str, Any]]
+    ) -> Dict[int, int]:
+        """Create mapping of character positions to page numbers."""
         page_mapping = {}
         current_pos = 0
 
@@ -112,73 +91,30 @@ class Chunker:
             page_num = page_info["page_number"]
             page_content = page_info["content"]
 
-            # Find this page's content in the full text
             page_start = full_text.find(page_content, current_pos)
             if page_start != -1:
                 page_end = page_start + len(page_content)
-                # Map all positions in this range to this page number
                 for pos in range(page_start, page_end):
                     page_mapping[pos] = page_num
                 current_pos = page_end
 
         return page_mapping
 
-    def _find_chunk_pages_direct(self, chunk_text: str, full_text: str, page_mapping: Dict[int, int]) -> List[int]:
-        """
-        Find which pages a chunk spans using direct character position mapping.
-
-        Args:
-            chunk_text: The chunk's text
-            full_text: Complete document text
-            page_mapping: Mapping of character positions to page numbers
-
-        Returns:
-            List of page numbers the chunk appears on
-        """
-        # Find chunk position in full text
-        chunk_start = full_text.find(chunk_text)
-        if chunk_start == -1:
-            # If exact match fails, try fuzzy matching with first/last 50 chars
-            if len(chunk_text) > 100:
-                # Try to find the chunk by its beginning
-                search_text = chunk_text[:50]
-                chunk_start = full_text.find(search_text)
-
-        if chunk_start == -1:
-            return []
-
-        chunk_end = chunk_start + len(chunk_text)
-
-        # Find all unique page numbers in this character range
-        page_nums = set()
-        for pos in range(chunk_start, min(chunk_end, len(full_text))):
-            if pos in page_mapping:
-                page_nums.add(page_mapping[pos])
-
-        return sorted(list(page_nums))
-
-    def _find_chunk_pages(self, chunk_text: str, full_text: str, page_mapping: Dict[int, int]) -> List[int]:
-        """
-        Find which pages a chunk spans (old method for backward compatibility).
-
-        Args:
-            chunk_text: The chunk's text
-            full_text: Complete document text
-            page_mapping: Mapping of positions to page numbers
-
-        Returns:
-            List of page numbers the chunk appears on
-        """
-        # Find chunk position in full text
+    def _find_chunk_pages(
+        self, chunk_text: str, full_text: str, page_mapping: Dict[int, int]
+    ) -> List[int]:
+        """Find which pages a chunk spans."""
         chunk_start = full_text.find(chunk_text)
         if chunk_start == -1:
             return []
 
         chunk_end = chunk_start + len(chunk_text)
-
-        # Find all unique page numbers in this range
         page_nums = set()
-        for pos in range(chunk_start, min(chunk_end, max(page_mapping.keys()) + 1) if page_mapping else chunk_end):
+
+        for pos in range(
+            chunk_start,
+            min(chunk_end, max(page_mapping.keys()) + 1) if page_mapping else chunk_end,
+        ):
             if pos in page_mapping:
                 page_nums.add(page_mapping[pos])
 
@@ -211,19 +147,27 @@ class Chunker:
         return page_num
 
     def process_folder(self, folder_path: str) -> List[Dict[str, Any]]:
+        """Process all text files in a folder and return chunks."""
         if not os.path.isdir(folder_path):
             raise FileNotFoundError(f"Folder not found: {folder_path}")
+
         all_chunks = []
-        for fname in os.listdir(folder_path):
-            full_path = os.path.join(folder_path, fname)
-            if os.path.isfile(full_path):
-                try:
-                    with open(full_path, "r", encoding="utf-8") as f:
-                        content = f.read()
-                    metadata = {"source_file": fname}
-                    file_chunks = self.process_text(content, metadata)
-                    all_chunks.extend(file_chunks)
-                    print(f"[Chunker] Processed {fname} → {len(file_chunks)} chunks")
-                except Exception as e:
-                    print(f"[Chunker] Error processing {fname}: {e}")
+        with tracer.start_as_current_span("chunking.process_folder") as span:
+            span.set_attribute("folder_path", folder_path)
+
+            for fname in os.listdir(folder_path):
+                full_path = os.path.join(folder_path, fname)
+                if os.path.isfile(full_path):
+                    try:
+                        with open(full_path, "r", encoding="utf-8") as f:
+                            content = f.read()
+                        metadata = {"source_file": fname}
+                        file_chunks = self.process_text(content, metadata)
+                        all_chunks.extend(file_chunks)
+                        print(f"[Chunker] Processed {fname} → {len(file_chunks)} chunks")
+                    except Exception as e:
+                        span.record_exception(e)
+                        print(f"[Chunker] Error processing {fname}: {e}")
+
+            span.set_attribute("total_chunks", len(all_chunks))
         return all_chunks
