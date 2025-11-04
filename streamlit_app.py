@@ -710,7 +710,7 @@ def main():
     llm_backend, top_k = sidebar_settings()
 
     # Create tabs
-    tab1, tab2 = st.tabs(["📤 Upload", "💬 Chat"])
+    tab1, tab2, tab3 = st.tabs(["📤 Upload", "💬 Chat", "Prompt"])
 
     with tab1:
         upload_tab()
@@ -718,6 +718,38 @@ def main():
     with tab2:
         st.markdown("### Ask questions about your documents!")
         chat_tab(llm_backend, top_k)
+    with tab3:
+        st.markdown("### Selected Prompt Version Details")
+        version_id = st.session_state.get("selected_prompt_version_id")
+
+        if version_id:
+            try:
+                client = Client()
+                prompt_obj = client.prompts.get(prompt_version_id=version_id)
+
+                # Use dict of internal attributes if available
+                raw = prompt_obj.__dict__ if hasattr(prompt_obj, "__dict__") else {}
+
+                prompt_id = raw.get("_id", version_id)
+                model_name = raw.get("_model_name", "Unknown")
+                template_obj = raw.get("_template", {})
+
+                st.write(f"**Prompt ID:** {prompt_id}")
+                st.write(f"**Model Name:** {model_name}")
+                st.write("**Template Text:**")
+
+                # If `template_obj` is as you showed, then fetch `messages` and their `text`
+                messages = template_obj.get("messages", [])
+                full_text = "\n".join(
+                    msg.get("content", [{}])[0].get("text", "")
+                    for msg in messages
+                )
+                st.text_area("Prompt Template", full_text, height=200)
+
+            except Exception as e:
+                st.error(f"Could not load prompt details: {e}")
+        else:
+            st.info("No prompt version selected yet.")
 
 
 if __name__ == "__main__":

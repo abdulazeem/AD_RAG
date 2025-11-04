@@ -1,2 +1,6 @@
 .env
 /.venv/
+
+# PyCharm temporary files
+*.tmp.*
+.dockerignore

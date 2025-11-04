@@ -4,12 +4,7 @@ from opentelemetry import trace
 
 
 def init_phoenix_tracing(project_name: str = "rag-llm-app"):
-    """
-    Initialize Phoenix tracing for the RAG system.
-    Auto-instruments LangChain (OpenAI, Ollama, etc.) and
-    exposes a tracer for manual instrumentation of embeddings,
-    chunking, and ingestion stages.
-    """
+
     # Register Phoenix OpenTelemetry tracer provider
     tracer_provider = register(
         project_name=project_name,
