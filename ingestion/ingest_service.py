@@ -1,13 +1,14 @@
 # rag_app/ingestion/ingest_service.py
-from observability.phoenix_tracer import init_phoenix_tracing
-tracer = init_phoenix_tracing()
-
 import os
 import json
 from typing import List, Dict, Any
 from config.settings import settings
 from .docling_loader import convert_document, convert_folder
 from .chunker import Chunker
+from observability.phoenix_tracer import init_phoenix_tracing
+
+# Phoenix tracing is initialized in main.py startup - this call is idempotent
+tracer = init_phoenix_tracing()
 from embeddings.embedder import Embedder
 from embeddings.vector_store import VectorStore
 from opentelemetry.trace import SpanKind

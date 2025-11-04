@@ -6,6 +6,7 @@ from config.settings import settings
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain.schema import HumanMessage
+from openai import OpenAI
 
 load_dotenv()
 
@@ -14,6 +15,7 @@ class OpenAILLM(LLMBackend):
     """
     LLMBackend implementation using LangChain's ChatOpenAI wrapper.
     Compatible with Phoenix OpenInference auto-tracing.
+    Also provides a raw OpenAI client for direct API access.
     """
 
     def __init__(self, api_key: str = None, model: str = None, timeout: int = None):
@@ -28,6 +30,9 @@ class OpenAILLM(LLMBackend):
             openai_api_key=self.api_key,
             timeout=self.timeout,
         )
+
+        # Raw OpenAI client for direct API access (e.g., with Phoenix prompts)
+        self.client = OpenAI(api_key=self.api_key, timeout=self.timeout)
 
     def generate(self, prompt: str, **kwargs) -> Tuple[str, Dict[str, int]]:
         """

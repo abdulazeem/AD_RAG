@@ -1,13 +1,14 @@
 # rag_app/ingestion/chunker.py
 
-from observability.phoenix_tracer import init_phoenix_tracing
-tracer = init_phoenix_tracing()
-
 import os
 from typing import List, Dict, Any
 from dotenv import load_dotenv
 from opentelemetry.trace import SpanKind
 from config.settings import settings
+from observability.phoenix_tracer import init_phoenix_tracing
+
+# Phoenix tracing is initialized in main.py startup - this call is idempotent
+tracer = init_phoenix_tracing()
 from config.backend_config import BackendConfig
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain_openai import OpenAIEmbeddings

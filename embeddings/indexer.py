@@ -11,6 +11,7 @@ from observability.phoenix_tracer import init_phoenix_tracing
 from dotenv import load_dotenv
 
 load_dotenv()
+# Phoenix tracing is initialized in main.py startup - this call is idempotent
 tracer = init_phoenix_tracing()
 
 

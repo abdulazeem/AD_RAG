@@ -1,7 +1,4 @@
 # rag_app/embeddings/embedder.py
-from observability.phoenix_tracer import init_phoenix_tracing
-tracer = init_phoenix_tracing()  # must come FIRST
-
 import os
 from typing import List
 from config.settings import settings
@@ -11,8 +8,10 @@ from langchain_openai.embeddings import OpenAIEmbeddings
 from langchain_ollama.embeddings import OllamaEmbeddings
 from opentelemetry.trace import SpanKind
 from dotenv import load_dotenv
-load_dotenv()
+from observability.phoenix_tracer import init_phoenix_tracing
 
+load_dotenv()
+# Phoenix tracing is initialized in main.py startup - this call is idempotent
 tracer = init_phoenix_tracing()
 
 class Embedder:

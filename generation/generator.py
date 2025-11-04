@@ -11,7 +11,8 @@ from llm.llm_ollama import OllamaLLM
 from observability.phoenix_tracer import init_phoenix_tracing
 
 load_dotenv()
-init_phoenix_tracing(project_name="rag-llm-app")
+# Phoenix tracing is initialized in main.py startup
+init_phoenix_tracing(project_name="rag-llm-app")  # Idempotent - safe to call multiple times
 
 class Generator:
     def __init__(self, backend: str = None):
@@ -70,10 +71,42 @@ class Generator:
 
         # Invoke the correct LLM
         if isinstance(self.llm, OpenAILLM):
-            response = self.llm.invoke_with_formatted_prompt(formatted, **kwargs)
-        else:  # OllamaLLM
-            response, usage = self.llm.generate(formatted["prompt"], **kwargs)
+            # Phoenix returns {"messages": [...], "model": "...", "temperature": ...}
+            # Send it directly to OpenAI chat endpoint
+            response = self.llm.client.chat.completions.create(**formatted)
+            answer = response.choices[0].message.content
 
-        answer = response.choices[0].message.content if hasattr(response, "choices") else response
-        usage = getattr(response, "usage", {})
+            # Extract usage information from response
+            usage = {
+                "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
+                "completion_tokens": response.usage.completion_tokens if response.usage else 0,
+                "total_tokens": response.usage.total_tokens if response.usage else 0
+            }
+        else:  # OllamaLLM
+            # Phoenix returns messages format, need to convert to single prompt string
+            # Check if formatted has "messages" key (chat format) or "prompt" key (completion format)
+            if "messages" in formatted:
+                # Convert messages to a single prompt string
+                messages = formatted.get("messages", [])
+                ollama_prompt = ""
+                for msg in messages:
+                    role = msg.get("role", "")
+                    content = msg.get("content", "")
+                    if role == "system":
+                        ollama_prompt += f"System: {content}\n\n"
+                    elif role == "user":
+                        ollama_prompt += f"User: {content}\n\n"
+                    elif role == "assistant":
+                        ollama_prompt += f"Assistant: {content}\n\n"
+                    else:
+                        ollama_prompt += f"{content}\n\n"
+                ollama_prompt = ollama_prompt.strip()
+            else:
+                # Fallback to prompt key if present
+                ollama_prompt = formatted.get("prompt", "")
+
+            response, usage = self.llm.generate(ollama_prompt, **kwargs)
+            answer = response
+
         return answer, usage
+
