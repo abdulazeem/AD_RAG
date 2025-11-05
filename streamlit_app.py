@@ -43,503 +43,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for Open WebUI-inspired dark theme
-st.markdown("""
-<style>
-    /* Main container styling - Dark theme like Open WebUI */
-    .main {
-        background-color: #0f0f0f;
-        padding: 2rem;
-        color: #e5e5e5;
-    }
-
-    /* Overall app background */
-    .stApp {
-        background-color: #0f0f0f;
-    }
-
-    /* Toolbar - Make it black */
-    [data-testid="stToolbar"],
-    .stAppToolbar,
-    .st-emotion-cache-14vh5up {
-        background-color: #0f0f0f !important;
-        border-bottom: 1px solid #2a2a2a !important;
-    }
-
-    /* Toolbar inner containers */
-    [data-testid="stToolbar"] > div,
-    .stAppToolbar > div,
-    .st-emotion-cache-1j22a0y,
-    .st-emotion-cache-70qvj9,
-    .st-emotion-cache-scp8yw {
-        background-color: transparent !important;
-    }
-
-    /* Toolbar buttons */
-    [data-testid="stToolbar"] button,
-    .stAppToolbar button {
-        color: #e5e5e5 !important;
-        background-color: transparent !important;
-    }
-
-    /* Toolbar actions container */
-    [data-testid="stToolbarActions"],
-    .stToolbarActions {
-        background-color: transparent !important;
-    }
-
-    /* Main menu button */
-    [data-testid="stMainMenu"],
-    .stMainMenu {
-        color: #e5e5e5 !important;
-    }
-
-    [data-testid="stMainMenu"] button {
-        background-color: transparent !important;
-    }
-
-    /* Main menu icon (three dots) */
-    [data-testid="stMainMenu"] svg {
-        color: #e5e5e5 !important;
-        fill: #e5e5e5 !important;
-    }
-
-    /* Deploy button */
-    [data-testid="stAppDeployButton"] button {
-        background-color: #3b82f6 !important;
-        color: white !important;
-        border-radius: 8px !important;
-        padding: 0.5rem 1rem !important;
-    }
-
-    [data-testid="stAppDeployButton"] button:hover {
-        background-color: #2563eb !important;
-    }
-
-    /* Status widget (Rerun notification) - Dark theme */
-    [data-testid="stStatusWidget"],
-    .stStatusWidget {
-        background-color: #1a1a1a !important;
-        border: 1px solid #2a2a2a !important;
-        color: #e5e5e5 !important;
-    }
-
-    /* Status widget label */
-    [data-testid="stStatusWidget"] label {
-        color: #e5e5e5 !important;
-    }
-
-    /* Status widget icon */
-    [data-testid="stStatusWidget"] span[data-testid="stIconMaterial"] {
-        color: #3b82f6 !important;
-    }
-
-    /* Status widget buttons (Rerun, Always rerun) */
-    [data-testid="stStatusWidget"] button {
-        background-color: #2a2a2a !important;
-        color: #e5e5e5 !important;
-        border: 1px solid #404040 !important;
-    }
-
-    [data-testid="stStatusWidget"] button:hover {
-        background-color: #3b82f6 !important;
-        color: white !important;
-        border-color: #3b82f6 !important;
-    }
-
-    /* Chat container - Dark theme */
-    .stChatMessage {
-        background-color: #1a1a1a;
-        border: 1px solid #2a2a2a;
-        border-radius: 12px;
-        padding: 1rem;
-        margin: 0.5rem 0;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-    }
-
-    /* User message */
-    .stChatMessage[data-testid="user-message"] {
-        background-color: #1e3a5f;
-        border: 1px solid #2c5282;
-    }
-
-    /* Sidebar styling - Dark theme */
-    [data-testid="stSidebar"] {
-        background-color: #171717;
-        border-right: 1px solid #2a2a2a;
-    }
-
-    [data-testid="stSidebar"] .stMarkdown p {
-        color: #e5e5e5;
-    }
-
-    [data-testid="stSidebar"] .stMarkdown span {
-        color: #e5e5e5;
-    }
-
-    /* Headers - White text on dark */
-    h1 {
-        color: #ffffff;
-        text-align: center;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        text-shadow: 2px 2px 8px rgba(0,0,0,0.5);
-        margin-bottom: 2rem;
-    }
-
-    h2, h3 {
-        color: #ffffff;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }
-
-    h4, h5, h6 {
-        color: #ffffff;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }
-
-    /* Info boxes - Dark theme */
-    .stAlert {
-        border-radius: 10px;
-        background-color: #1a1a1a;
-        border: 1px solid #2a2a2a;
-        color: #e5e5e5;
-    }
-
-    /* Buttons - Modern dark theme */
-    .stButton > button {
-        border-radius: 8px;
-        background-color: #3b82f6;
-        color: white;
-        border: none;
-        padding: 0.5rem 2rem;
-        font-weight: 600;
-        transition: all 0.2s ease;
-    }
-
-    .stButton > button:hover {
-        background-color: #2563eb;
-        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-    }
-
-    .stButton > button[kind="secondary"] {
-        background-color: #2a2a2a;
-        border: 1px solid #404040;
-    }
-
-    .stButton > button[kind="secondary"]:hover {
-        background-color: #333333;
-    }
-
-    /* Input fields - Dark theme */
-    .stTextInput > div > div > input,
-    .stSelectbox > div > div > select,
-    .stTextArea textarea {
-        background-color: #1a1a1a;
-        border: 1px solid #2a2a2a;
-        border-radius: 8px;
-        color: #e5e5e5;
-        padding: 0.5rem;
-    }
-
-    .stTextInput > div > div > input:focus,
-    .stSelectbox > div > div > select:focus,
-    .stTextArea textarea:focus {
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 1px #3b82f6;
-    }
-
-    /* Metrics - Dark theme */
-    [data-testid="stMetricValue"] {
-        font-size: 1.5rem;
-        color: #3b82f6;
-        font-weight: bold;
-    }
-
-    [data-testid="stMetricLabel"] {
-        font-weight: 600;
-        color: #a0a0a0;
-    }
-
-    /* File uploader - Dark theme */
-    .stFileUploader {
-        background-color: #1a1a1a;
-        border: 1px dashed #2a2a2a;
-        border-radius: 10px;
-        padding: 1rem;
-    }
-
-    /* Tabs - Dark theme */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 1rem;
-        background-color: #171717;
-        border-radius: 10px;
-        padding: 0.5rem;
-        border: 1px solid #2a2a2a;
-    }
-
-    .stTabs [data-baseweb="tab"] {
-        color: #a0a0a0;
-        font-weight: 600;
-        border-radius: 8px;
-        padding: 0.5rem 1.5rem;
-        background-color: transparent;
-    }
-
-    .stTabs [data-baseweb="tab"]:hover {
-        background-color: #2a2a2a;
-        color: #e5e5e5;
-    }
-
-    .stTabs [aria-selected="true"] {
-        background-color: #3b82f6;
-        color: white;
-    }
-
-    /* Expanders - Dark theme */
-    .streamlit-expanderHeader {
-        background-color: #1a1a1a;
-        border: 1px solid #2a2a2a;
-        border-radius: 8px;
-        font-weight: 600;
-        color: #e5e5e5;
-    }
-
-    .streamlit-expanderHeader:hover {
-        background-color: #2a2a2a;
-    }
-
-    /* Code blocks - Dark theme */
-    .stCodeBlock {
-        background-color: #1a1a1a;
-        border: 1px solid #2a2a2a;
-        border-radius: 8px;
-    }
-
-    code {
-        background-color: #1a1a1a;
-        color: #e5e5e5;
-        padding: 0.2rem 0.4rem;
-        border-radius: 4px;
-    }
-
-    /* Fix chat input - Dark theme */
-    [data-testid="stChatInput"] {
-    position: fixed !important;
-    bottom: 0 !important;
-    left: 200pt !important;
-    right: 0 !important;
-    padding: 1rem 3rem !important;
-    z-index: 1000 !important;
-    margin: 0 !important;
-
-    /* ✅ Gradient: black bottom → transparent top */
-    background: linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 100%) !important;
-
-    /* Optional: round top corners */
-    border-radius: 12px 12px 0 0;
-}
-
-
-    [data-testid="stChatInput"] input {
-        border: 1px solid #2a2a2a !important;
-        color: #e5e5e5 !important;
-    }
-
-    /* Adjust for sidebar */
-    [data-testid="stChatInput"] {
-        margin-left: 7rem !important;
-    }
-
-    /* Bottom padding to prevent content overlap */
-    .main {
-        padding-bottom: 120px !important;
-    }
-
-    /* Dividers - Dark theme */
-    hr {
-        border-color: #2a2a2a;
-    }
-
-    /* Status badges */
-    .status-badge {
-        display: inline-block;
-        padding: 0.25rem 0.75rem;
-        border-radius: 12px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        margin: 0.25rem;
-    }
-
-    .badge-success {
-        background-color: #10b981;
-        color: white;
-    }
-
-    .badge-info {
-        background-color: #3b82f6;
-        color: white;
-    }
-
-    .badge-warning {
-        background-color: #f59e0b;
-        color: white;
-    }
-
-    /* Progress bars - Dark theme */
-    .stProgress > div > div {
-        background-color: #3b82f6;
-    }
-
-    /* Markdown text in main area */
-    .stMarkdown {
-        color: #e5e5e5;
-    }
-
-    /* Force all headings to be white */
-    .stMarkdown h1,
-    .stMarkdown h2,
-    .stMarkdown h3,
-    .stMarkdown h4,
-    .stMarkdown h5,
-    .stMarkdown h6 {
-        color: #ffffff !important;
-    }
-
-    /* Streamlit specific heading components */
-    [data-testid="stMarkdownContainer"] h1,
-    [data-testid="stMarkdownContainer"] h2,
-    [data-testid="stMarkdownContainer"] h3,
-    [data-testid="stMarkdownContainer"] h4,
-    [data-testid="stMarkdownContainer"] h5,
-    [data-testid="stMarkdownContainer"] h6 {
-        color: #ffffff !important;
-    }
-
-    /* Streamlit title and subheader */
-    .stTitle,
-    .stSubheader,
-    [class*="stTitle"],
-    [class*="stSubheader"] {
-        color: #ffffff !important;
-    }
-
-    /* Any element with these classes */
-    .e1nzilvr0,
-    .e1nzilvr1,
-    .e1nzilvr2,
-    .e1nzilvr3,
-    .e1nzilvr4,
-    .e1nzilvr5 {
-        color: #ffffff !important;
-    }
-
-    /* Force all paragraph children that are actually headers */
-    p > strong {
-        color: #ffffff;
-    }
-
-    /* Super aggressive heading override - catches everything */
-    .main h1,
-    .main h2,
-    .main h3,
-    .main h4,
-    .main h5,
-    .main h6,
-    div[data-testid="column"] h1,
-    div[data-testid="column"] h2,
-    div[data-testid="column"] h3,
-    div[data-testid="column"] h4,
-    div[data-testid="column"] h5,
-    div[data-testid="column"] h6,
-    [data-testid="stSidebar"] h1,
-    [data-testid="stSidebar"] h2,
-    [data-testid="stSidebar"] h3,
-    [data-testid="stSidebar"] h4,
-    [data-testid="stSidebar"] h5,
-    [data-testid="stSidebar"] h6 {
-        color: #ffffff !important;
-    }
-
-    /* Captions */
-    .stCaption {
-        color: #a0a0a0;
-    }
-
-    /* Success/Error/Warning messages - Dark theme */
-    .stSuccess {
-        background-color: #1a3a1a;
-        border: 1px solid #10b981;
-        color: #10b981;
-    }
-
-    .stError {
-        background-color: #3a1a1a;
-        border: 1px solid #ef4444;
-        color: #ef4444;
-    }
-
-    .stWarning {
-        background-color: #3a2f1a;
-        border: 1px solid #f59e0b;
-        color: #f59e0b;
-    }
-
-    .stInfo {
-        background-color: #1a2a3a;
-        border: 1px solid #3b82f6;
-        color: #3b82f6;
-    }
-
-    /* Multiselect - Dark theme */
-    .stMultiSelect > div > div {
-        background-color: #1a1a1a;
-        border: 1px solid #2a2a2a;
-        border-radius: 8px;
-    }
-
-    .stMultiSelect [data-baseweb="tag"] {
-        background-color: #3b82f6;
-        color: white;
-    }
-
-    /* Radio buttons - Dark theme */
-    .stRadio > label {
-        color: #e5e5e5;
-    }
-
-    /* Slider - Dark theme */
-    .stSlider > div > div > div {
-        background-color: #3b82f6;
-    }
-
-    /* Checkbox - Dark theme */
-    .stCheckbox > label {
-        color: #e5e5e5;
-    }
-
-    /* Spinner - Dark theme */
-    .stSpinner > div {
-        border-top-color: #3b82f6;
-    }
-
-    /* Tables - Dark theme */
-    table {
-        background-color: #1a1a1a;
-        color: #e5e5e5;
-    }
-
-    thead tr {
-        background-color: #2a2a2a;
-    }
-
-    tbody tr {
-        border-bottom: 1px solid #2a2a2a;
-    }
-
-    tbody tr:hover {
-        background-color: #252525;
-    }
-</style>
-""", unsafe_allow_html=True)
 
 # Initialize session state
 if "messages" not in st.session_state:
@@ -643,8 +146,10 @@ def sidebar_prompt_version_selector(llm_backend: str):
     )
 
     st.subheader("🧠 Prompt Version")
+
+    # Try to fetch available prompt versions from Phoenix
+    phoenix_error = None
     try:
-        # Fetch available prompt versions from Phoenix REST API
         resp = requests.get(
             f"{base_url}/v1/prompts/{prompt_identifier}/versions",
             params={"limit": 20},
@@ -656,13 +161,13 @@ def sidebar_prompt_version_selector(llm_backend: str):
             versions = data.get("data", [])
         else:
             versions = []
-            st.warning(f"Unable to fetch prompt versions ({resp.status_code})")
+            phoenix_error = "Phoenix not available"
 
     except Exception as e:
         versions = []
-        st.error(f"Error fetching prompt versions: {str(e)}")
+        phoenix_error = "Phoenix not connected"
 
-    # Build selection dropdown
+    # Build selection dropdown or show info message
     if versions:
         version_labels = {
             v["id"]: f"{v['id']} ({v.get('model_name', 'unknown')} - {v.get('created_at', 'n/a')})"
@@ -678,7 +183,11 @@ def sidebar_prompt_version_selector(llm_backend: str):
 
         st.session_state.selected_prompt_version_id = selected_vid
     else:
-        st.info("No prompt versions available.")
+        # Show info message when no versions are available
+        if phoenix_error:
+            st.info(f"📝 Using default RAG prompt ({phoenix_error})")
+        else:
+            st.info("📝 Using default RAG prompt (no versions available)")
         st.session_state.selected_prompt_version_id = None
 
     return st.session_state.get("selected_prompt_version_id")
@@ -971,16 +480,7 @@ def upload_tab():
     st.markdown("### 📤 Upload Documents to Knowledge Base")
     st.markdown("Add documents to your RAG system for intelligent question answering. Supports PDF, DOCX, TXT, and Markdown files.")
 
-    # Quick stats
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Supported Formats", "4 Types")
-    with col2:
-        st.metric("Max File Size", "100 MB")
-    with col3:
-        st.metric("Processing", "Automatic")
 
-    st.divider()
 
     # Upload mode selector
     upload_mode = st.radio(
@@ -1350,22 +850,364 @@ def prompt_tab():
             st.code(traceback.format_exc())
 
 
+def evaluation_tab():
+    """Evaluation interface tab."""
+    st.markdown("### 📊 RAG System Evaluation")
+    st.markdown("Generate ground truth datasets and evaluate your RAG system's performance using LLM-based metrics.")
+
+    # Create sub-tabs for different evaluation tasks
+    eval_tab1, eval_tab2, eval_tab3 = st.tabs(["🔬 Generate Ground Truth", "⚡ Run Evaluation", "📈 View Results"])
+
+    with eval_tab1:
+        st.markdown("#### 🔬 Generate Ground Truth Dataset")
+        st.info("💡 Generate question-answer pairs from your documents to create evaluation datasets.")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            gt_backend = st.selectbox(
+                "LLM Backend for Generation",
+                options=["openai", "ollama"],
+                index=0,
+                help="Choose which LLM to use for generating ground truth",
+                key="gt_backend"
+            )
+
+        with col2:
+            num_samples = st.number_input(
+                "Number of Samples",
+                min_value=1,
+                max_value=100,
+                value=10,
+                help="How many question-answer pairs to generate"
+            )
+
+        # Document filter for ground truth generation
+        try:
+            url = DOCUMENTS_ENDPOINT.format(backend=gt_backend)
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200:
+                docs_data = response.json()
+                documents = docs_data.get("documents", [])
+                doc_filenames = [doc["filename"] for doc in documents]
+
+                gt_selected_docs = st.multiselect(
+                    "Filter by Documents (optional)",
+                    options=doc_filenames,
+                    default=[],
+                    help="Leave empty to use all documents, or select specific documents",
+                    key="gt_doc_filter"
+                )
+            else:
+                gt_selected_docs = []
+        except:
+            gt_selected_docs = []
+
+        st.divider()
+
+        if st.button("🚀 Generate Ground Truth", use_container_width=True, type="primary"):
+            with st.spinner(f"Generating {num_samples} ground truth samples with {gt_backend.upper()}..."):
+                try:
+                    payload = {
+                        "backend": gt_backend,
+                        "num_samples": num_samples,
+                        "selected_documents": gt_selected_docs if gt_selected_docs else None
+                    }
+
+                    response = requests.post(EVALUATION_GROUND_TRUTH_ENDPOINT, json=payload, timeout=600)
+
+                    if response.status_code == 200:
+                        result = response.json()
+                        if result.get("success"):
+                            st.success(f"✅ {result.get('message')}")
+                            st.info(f"📁 File saved: {result.get('file_path')}")
+
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.metric("Generated Samples", result.get('num_generated', 0))
+                            with col2:
+                                st.metric("Backend Used", gt_backend.upper())
+                        else:
+                            st.error(f"❌ {result.get('message')}")
+                    else:
+                        st.error(f"❌ Request failed with status {response.status_code}")
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
+
+        st.divider()
+
+        # List existing ground truth files
+        st.markdown("#### 📚 Existing Ground Truth Files")
+        try:
+            response = requests.get(EVALUATION_FILES_ENDPOINT, timeout=5)
+            if response.status_code == 200:
+                files = response.json()
+                if files:
+                    for file_info in files:
+                        with st.expander(f"📄 {file_info['filename']}"):
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.caption(f"**Created:** {file_info['created_at']}")
+                            with col2:
+                                st.caption(f"**Size:** {file_info['size_kb']:.2f} KB")
+                            with col3:
+                                if st.button("🗑️ Delete", key=f"del_gt_{file_info['filename']}"):
+                                    try:
+                                        del_url = EVALUATION_DELETE_FILE_ENDPOINT.format(filename=file_info['filename'])
+                                        del_response = requests.delete(del_url, timeout=5)
+                                        if del_response.status_code == 200:
+                                            st.success("Deleted!")
+                                            st.rerun()
+                                        else:
+                                            st.error("Delete failed")
+                                    except Exception as e:
+                                        st.error(f"Error: {str(e)}")
+
+                            # Preview button
+                            if st.button("👁️ Preview", key=f"preview_gt_{file_info['filename']}"):
+                                try:
+                                    preview_url = EVALUATION_PREVIEW_FILE_ENDPOINT.format(filename=file_info['filename'])
+                                    preview_response = requests.get(preview_url, timeout=5)
+                                    if preview_response.status_code == 200:
+                                        preview = preview_response.json()
+                                        st.write(f"**Total Rows:** {preview['total_rows']}")
+                                        st.write(f"**Columns:** {', '.join(preview['columns'])}")
+                                        st.dataframe(preview['preview_data'])
+                                except Exception as e:
+                                    st.error(f"Preview error: {str(e)}")
+                else:
+                    st.info("No ground truth files yet. Generate one above!")
+            else:
+                st.warning("Unable to load ground truth files")
+        except Exception as e:
+            st.warning(f"Failed to load files: {str(e)}")
+
+    with eval_tab2:
+        st.markdown("#### ⚡ Run RAG Evaluation")
+        st.info("💡 Evaluate your RAG system using a ground truth dataset and LLM-based metrics.")
+
+        # Load ground truth files for selection
+        try:
+            response = requests.get(EVALUATION_FILES_ENDPOINT, timeout=5)
+            gt_files = []
+            if response.status_code == 200:
+                files_data = response.json()
+                gt_files = [f['filepath'] for f in files_data]
+                gt_filenames = [f['filename'] for f in files_data]
+        except:
+            gt_files = []
+            gt_filenames = []
+
+        if not gt_files:
+            st.warning("⚠️ No ground truth files available. Generate one first in the 'Generate Ground Truth' tab.")
+        else:
+            selected_gt_idx = st.selectbox(
+                "Select Ground Truth File",
+                options=range(len(gt_filenames)),
+                format_func=lambda i: gt_filenames[i],
+                help="Choose which ground truth file to use for evaluation"
+            )
+            selected_gt_file = gt_files[selected_gt_idx]
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                eval_backend = st.selectbox(
+                    "LLM Backend for Evaluation",
+                    options=["openai", "ollama"],
+                    index=0,
+                    help="Choose which LLM to use for evaluation",
+                    key="eval_backend"
+                )
+
+            # Document filter for evaluation
+            try:
+                url = DOCUMENTS_ENDPOINT.format(backend=eval_backend)
+                response = requests.get(url, timeout=5)
+                if response.status_code == 200:
+                    docs_data = response.json()
+                    documents = docs_data.get("documents", [])
+                    doc_filenames = [doc["filename"] for doc in documents]
+
+                    eval_selected_docs = st.multiselect(
+                        "Filter by Documents (optional)",
+                        options=doc_filenames,
+                        default=[],
+                        help="Leave empty to use all documents",
+                        key="eval_doc_filter"
+                    )
+                else:
+                    eval_selected_docs = []
+            except:
+                eval_selected_docs = []
+
+            st.divider()
+
+            if st.button("🚀 Run Evaluation", use_container_width=True, type="primary"):
+                with st.spinner(f"Running evaluation with {eval_backend.upper()}... This may take a while."):
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+
+                    try:
+                        status_text.text("Starting evaluation...")
+                        progress_bar.progress(10)
+
+                        payload = {
+                            "ground_truth_file": selected_gt_file,
+                            "backend": eval_backend,
+                            "selected_documents": eval_selected_docs if eval_selected_docs else None
+                        }
+
+                        progress_bar.progress(20)
+                        response = requests.post(EVALUATION_EVALUATE_ENDPOINT, json=payload, timeout=1800)
+                        progress_bar.progress(90)
+
+                        if response.status_code == 200:
+                            result = response.json()
+                            progress_bar.progress(100)
+                            status_text.text("✅ Evaluation complete!")
+
+                            if result.get("success"):
+                                st.success(f"✅ {result.get('message')}")
+
+                                # Display summary metrics
+                                st.markdown("### 📊 Evaluation Summary")
+                                summary = result.get('results_summary', {})
+
+                                col1, col2, col3, col4 = st.columns(4)
+                                with col1:
+                                    st.metric("Questions Evaluated", summary.get('questions_evaluated', 0))
+                                with col2:
+                                    faithful_pct = summary.get('faithful_percentage', 0)
+                                    st.metric("Faithfulness", f"{faithful_pct:.1f}%")
+                                with col3:
+                                    avg_correctness = summary.get('average_correctness', 0)
+                                    st.metric("Avg Correctness", f"{avg_correctness:.2f}")
+                                with col4:
+                                    faithful_count = summary.get('faithful_count', 0)
+                                    st.metric("Faithful Responses", faithful_count)
+
+                                st.info(f"📁 Results saved: {result.get('results_file_path')}")
+                            else:
+                                st.error(f"❌ {result.get('message')}")
+                        else:
+                            st.error(f"❌ Request failed with status {response.status_code}")
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+                        import traceback
+                        with st.expander("🔍 Error Details"):
+                            st.code(traceback.format_exc())
+                    finally:
+                        progress_bar.empty()
+                        status_text.empty()
+
+    with eval_tab3:
+        st.markdown("#### 📈 Evaluation Results")
+        st.info("💡 View and analyze your RAG system evaluation results.")
+
+        # List evaluation result files
+        try:
+            response = requests.get(EVALUATION_RESULTS_ENDPOINT, timeout=5)
+            if response.status_code == 200:
+                result_files = response.json()
+                if result_files:
+                    st.markdown(f"**Found {len(result_files)} evaluation result(s)**")
+
+                    for file_info in result_files:
+                        with st.expander(f"📊 {file_info['filename']}", expanded=True):
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.caption(f"**Created:** {file_info['created_at']}")
+                            with col2:
+                                st.caption(f"**Size:** {file_info['size_kb']:.2f} KB")
+
+                            # Preview button
+                            if st.button("👁️ View Results", key=f"preview_results_{file_info['filename']}"):
+                                try:
+                                    preview_url = EVALUATION_RESULTS_PREVIEW_ENDPOINT.format(filename=file_info['filename'])
+                                    preview_response = requests.get(preview_url, params={"rows": 20}, timeout=5)
+                                    if preview_response.status_code == 200:
+                                        preview = preview_response.json()
+                                        st.write(f"**Total Evaluations:** {preview['total_rows']}")
+                                        st.write(f"**Columns:** {', '.join(preview['columns'])}")
+
+                                        # Display preview data as dataframe
+                                        import pandas as pd
+                                        df = pd.DataFrame(preview['preview_data'])
+                                        st.dataframe(df, use_container_width=True)
+
+                                        # Calculate and display aggregate metrics if available
+                                        if 'faithfulness' in df.columns and 'correctness' in df.columns:
+                                            st.markdown("#### 📊 Aggregate Metrics")
+                                            metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
+
+                                            with metrics_col1:
+                                                faithful_count = (df['faithfulness'] == 'yes').sum()
+                                                faithful_pct = (faithful_count / len(df)) * 100
+                                                st.metric("Faithfulness Rate", f"{faithful_pct:.1f}%")
+
+                                            with metrics_col2:
+                                                avg_correctness = df['correctness'].mean()
+                                                st.metric("Avg Correctness", f"{avg_correctness:.2f}")
+
+                                            with metrics_col3:
+                                                st.metric("Total Evaluated", len(df))
+                                except Exception as e:
+                                    st.error(f"Preview error: {str(e)}")
+                                    import traceback
+                                    with st.expander("🔍 Error Details"):
+                                        st.code(traceback.format_exc())
+                else:
+                    st.info("No evaluation results yet. Run an evaluation first!")
+            else:
+                st.warning("Unable to load evaluation results")
+        except Exception as e:
+            st.warning(f"Failed to load results: {str(e)}")
+
+
 def main():
     """Main application."""
     # Title with emoji
-    st.title("🤖 RAG Assistant")
-    st.markdown("""
-    <p style='text-align: center; color: #a0a0a0; font-size: 1rem; margin-top: -1rem; margin-bottom: 2rem;'>
-    Intelligent Document Question-Answering System powered by RAG
-    </p>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        """
+        <h1 style='text-align: center; color: black;'>🤖 RAG Assistant</h1>
+        <p style='text-align: center; color: #a0a0a0; font-size: 1rem; margin-top: -1rem;'>
+            Intelligent Document Question-Answering System powered by RAG
+        </p>
+        
+        
+        """,
+        unsafe_allow_html=True
+    )
 
     # Get settings from sidebar
     llm_backend, top_k = sidebar_settings()
 
+    # Custom CSS to change tab colors to white and keep chat input at bottom
+    st.markdown("""
+        <style>
+  
+        /* Fix chat input - keep at bottom */
+         [data-testid="stChatInput"] {
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 300pt !important;
+        right: 0 !important;
+        padding: 1rem 3rem !important;
+        background: linear-gradient(to top, rgba(102, 126, 234, 0.95), #ffffff !important;
+        z-index: 1000 !important;
+        margin: 0 !important;
+    }
 
-    # Create tabs - Reordered: Upload, Prompts, Chat
-    tab1, tab2, tab3 = st.tabs(["📤 Upload Documents", "🧠 Prompt Templates", "💬 Chat"])
+    /* Adjust for sidebar */
+    [data-testid="stChatInput"] {
+        margin-left: 15rem !important;
+    }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # Create tabs - Added Evaluation tab
+    tab1, tab2, tab3, tab4 = st.tabs(["📤 Upload Documents", "🧠 Prompt Templates", "💬 Chat", "📊 Evaluation"])
 
     with tab1:
         upload_tab()
@@ -1388,6 +1230,9 @@ def main():
             **Type your question below to get started!**
             """)
         chat_tab(llm_backend, top_k)
+
+    with tab4:
+        evaluation_tab()
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from generation.api.routers import query, ingest, admin, chat, rerank, prompts
+from generation.api.routers import query, ingest, admin, chat, rerank, prompts, evaluation
 from database.init_db import init_db
 from observability.phoenix_tracer import init_phoenix_tracing
 
@@ -25,6 +25,7 @@ def create_app() -> FastAPI:
     app.include_router(chat.router, prefix="/api/v1/chat", tags=["chat"])
     app.include_router(rerank.router, prefix="/api/v1/rerank", tags=["rerank"])
     app.include_router(prompts.router)
+    app.include_router(evaluation.router, prefix="/api/v1/evaluation", tags=["evaluation"])
 
     return app
 

@@ -8,6 +8,7 @@ from sqlalchemy import create_engine, text, MetaData, Table, Column, String, JSO
 from pgvector.sqlalchemy import Vector
 from config.settings import settings
 from config.backend_config import BackendConfig
+from database.chat_manager import Base
 import uuid
 
 router = APIRouter()
@@ -252,3 +253,58 @@ async def list_documents(backend: BackendType):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error listing documents: {str(e)}")
+
+class DatabaseResetResponse(BaseModel):
+    success: bool
+    message: str
+    tables_reset: List[str]
+
+@router.post("/database/reset", response_model=DatabaseResetResponse, tags=["admin"])
+async def reset_chat_database(confirm: bool = Form(False)):
+    """
+    Drop and recreate all chat-related database tables.
+
+    This will delete all chat sessions and messages and recreate the tables
+    with the current schema. Use this when database schema has changed.
+
+    Args:
+        confirm: Must be True to proceed (safety check)
+
+    Returns:
+        Status of the database reset operation
+    """
+    if not confirm:
+        raise HTTPException(
+            status_code=400,
+            detail="Must set 'confirm=true' to reset database. This will delete all chat history!"
+        )
+
+    try:
+        engine = create_engine(settings.database.postgres_url)
+
+        # List of tables that will be reset
+        tables_to_reset = ['chat_sessions', 'chat_messages']
+
+        with engine.connect() as conn:
+            # Drop all chat-related tables
+            for table in tables_to_reset:
+                drop_query = text(f"DROP TABLE IF EXISTS {table} CASCADE")
+                conn.execute(drop_query)
+            conn.commit()
+
+        # Recreate all tables using SQLAlchemy models
+        Base.metadata.create_all(engine)
+
+        engine.dispose()
+
+        return DatabaseResetResponse(
+            success=True,
+            message="Chat database has been reset successfully. All tables recreated with current schema.",
+            tables_reset=tables_to_reset
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error resetting chat database: {str(e)}"
+        )

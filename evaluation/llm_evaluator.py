@@ -7,7 +7,6 @@ from retrieval.retrieval_pipeline import RetrievalPipeline
 from generation.generator import Generator
 from config.settings import settings
 from evaluation.schemas import EvaluationMetrics, EvaluationResult
-from observability.phoenix_prompt_manager import get_prompt_manager
 
 
 class LLMEvaluator:
@@ -24,7 +23,7 @@ class LLMEvaluator:
         self.pipeline = RetrievalPipeline(backend=self.backend)
         self.generator = Generator(backend=self.backend)
 
-        # Load evaluation prompt from Phoenix
+        # Load evaluation prompt template
         self.evaluation_prompt_template = self._load_evaluation_prompt()
 
     def generate_rag_answers(
@@ -76,17 +75,8 @@ class LLMEvaluator:
         return results
 
     def _load_evaluation_prompt(self) -> str:
-        """Load evaluation prompt from Phoenix with fallback."""
-        try:
-            prompt_manager = get_prompt_manager()
-            prompt_data = prompt_manager.get_prompt("rag_evaluation")
-            print(f"[LLMEvaluator] Loaded prompt 'rag_evaluation' version {prompt_data['version']} from Phoenix")
-            return prompt_data["template"]
-        except Exception as e:
-            print(f"[LLMEvaluator] Warning: Could not load evaluation prompt from Phoenix: {e}")
-            print(f"[LLMEvaluator] Using default evaluation prompt")
-            # Fallback to default
-            return """You are an expert evaluator tasked with comparing an AI-generated response against a ground truth answer.
+        """Load evaluation prompt template."""
+        return """You are an expert evaluator tasked with comparing an AI-generated response against a ground truth answer.
 
 Question: {question}
 

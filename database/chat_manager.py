@@ -27,7 +27,7 @@ class ChatMessage(Base):
     chat_session_id = Column(String, nullable=False)
     role = Column(String(20), nullable=False)  # 'user' or 'assistant'
     content = Column(Text, nullable=False)
-    s = Column(Text)  # JSON string of sources
+    sources = Column(Text)  # JSON string of sources
     cost = Column(Text)  # Store cost as text
     timestamp = Column(DateTime, default=datetime.utcnow)
 
